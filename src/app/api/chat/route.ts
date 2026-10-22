@@ -6,7 +6,10 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) {
+  // Next.js can normalize the internal URL hostname; compare with the actual
+  // incoming Host header so localhost and 127.0.0.1 both work correctly.
+  const incomingHost = request.headers.get("host");
+  if (origin && origin !== `${new URL(request.url).protocol}//${incomingHost}`) {
     return Response.json({ error: "Please send messages from the Perzo app." }, { status: 403 });
   }
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;

@@ -2,50 +2,128 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MAX_HISTORY_MESSAGES, MAX_MESSAGE_LENGTH, type ChatMessage } from "@/lib/chat";
-import { Pet, type PetState } from "./pet";
+import { BrandMark } from "./brand";
+import { Icon } from "./icon";
+import { VoiceInput } from "./voice-input";
+import { getGreeting } from "@/lib/greeting";
 
 type DisplayMessage = ChatMessage & { id: string };
-const suggestions = [
-  { icon: "☀", title: "Find a little focus", message: "Help me choose one small thing to focus on today." },
-  { icon: "✧", title: "Make something new", message: "Give me three fun ideas for a small creative project." },
-  { icon: "♡", title: "Talk it out", message: "I have a lot on my mind. Help me sort through it one step at a time." },
-];
-const stateLabels: Record<PetState, string> = { idle: "Here for you", thinking: "Thinking it through…", responding: "A little thought for you" };
+type AssistantState = "idle" | "thinking" | "responding";
+type Workspace = { id: string; name: string; messages: DisplayMessage[]; kind: "chat" | "project" };
+
+function Navigation({ busy, onReset, onAbout, onProject, projects, activeId, onSelect, displayName }: { busy: boolean; onReset: () => void; onAbout: () => void; onProject: () => void; projects: Workspace[]; activeId: string; onSelect: (id: string) => void; displayName: string }) {
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [showAll, setShowAll] = useState(false);
+  const searchInput = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (searchOpen) searchInput.current?.focus(); }, [searchOpen]);
+  const recentSpaces = [...projects].reverse().filter(project => (project.kind === "project" || project.messages.length > 0) &&
+    `${project.name} ${project.messages.map(message => message.content).join(" ")}`.toLowerCase().includes(query.toLowerCase()));
+  const visibleSpaces = showAll || query ? recentSpaces : recentSpaces.slice(0, 4);
+  return <>
+    <div className="nav-heading"><a className="nav-wordmark" href="/" aria-label="Perzo home">Perzo<span>.</span></a><button className="nav-search-toggle" onClick={() => { setSearchOpen(!searchOpen); setQuery(""); }} aria-label={searchOpen ? "Close search" : "Search chats and projects"} aria-expanded={searchOpen}><Icon name={searchOpen ? "close" : "search"} size={23} /></button></div>
+    {searchOpen && <div className="nav-search-field"><Icon name="search" size={17} /><input ref={searchInput} value={query} onChange={event => setQuery(event.target.value)} placeholder="Search chats and projects" aria-label="Search chats and projects" /></div>}
+    <nav className="nav-main-links" aria-label="Workspace navigation">
+      <button onClick={onProject} disabled={busy} title="Create a new project"><Icon name="folder" size={22} /><span>Projects</span></button>
+      <button onClick={() => onSelect("personal")} disabled={busy}><Icon name="chat" size={22} /><span>Chats</span></button>
+      <button onClick={onAbout}><Icon name="info" size={22} /><span>Personalize</span></button>
+    </nav>
+    <section className="nav-recents" aria-label="Recent chats and projects"><h2>Recents</h2>
+      <div className="nav-recent-list">{visibleSpaces.map(project => <button key={project.id} onClick={() => onSelect(project.id)} disabled={busy} aria-current={activeId === project.id ? "page" : undefined}><span>{project.id === "personal" && project.messages.length ? project.messages.find(message => message.role === "user")?.content.slice(0, 48) || "Chat" : project.name}</span></button>)}</div>
+      {(showAll || query) && recentSpaces.length === 0 && <p className="nav-empty">{query ? "No matching chats or projects." : "Your recent chats will appear here."}</p>}
+      {!query && <button className="nav-view-all" onClick={() => setShowAll(!showAll)} aria-expanded={showAll}>{showAll ? "Show less" : "View all"}<Icon name="chevron" size={18} /></button>}
+    </section>
+    <div className="nav-footer"><button className="nav-profile" onClick={onAbout} aria-label={displayName ? `Personalize Perzo for ${displayName}` : "Personalize Perzo"} title={displayName || "Personalize Perzo"}>{displayName ? Array.from(displayName)[0].toUpperCase() : <BrandMark />}</button><button className="new-session" onClick={onReset} disabled={busy}><Icon name="plus" size={21} /><span>New session</span></button></div>
+  </>;
+}
 
 export function PerzoChat() {
-  const [messages, setMessages] = useState<DisplayMessage[]>([]);
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([{ id: "personal", name: "Chat", messages: [], kind: "chat" }]);
+  const [activeId, setActiveId] = useState("personal");
+  const activeWorkspace = workspaces.find(workspace => workspace.id === activeId)!;
+  const messages = activeWorkspace.messages;
+  function setMessages(next: DisplayMessage[]) {
+    setWorkspaces(previous => previous.map(workspace => workspace.id === activeId ? { ...workspace, messages: next } : workspace));
+  }
+  const [projectName, setProjectName] = useState("");
+  const [projectError, setProjectError] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState("");
+  const [editedName, setEditedName] = useState("");
+  const [hour, setHour] = useState<number | null>(null);
+  const [profileNotice, setProfileNotice] = useState<string | null>(null);
+  const [listening, setListening] = useState(false);
+  const [composerNotice, setComposerNotice] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
-  const [state, setState] = useState<PetState>("idle");
+  const [state, setState] = useState<AssistantState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [retryMessages, setRetryMessages] = useState<DisplayMessage[] | null>(null);
   const locked = useRef(false);
+  const shell = useRef<HTMLDivElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
+  const drawer = useRef<HTMLDialogElement>(null);
+  const about = useRef<HTMLDialogElement>(null);
+  const projectDialog = useRef<HTMLDialogElement>(null);
   const responseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const controller = useRef<AbortController | null>(null);
   const busy = state === "thinking";
+  const controlsBusy = busy || listening;
 
   useEffect(() => {
-    bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, error, state]);
+    function updateClock() { setHour(new Date().getHours()); }
+    function loadName() {
+      try { setDisplayName((localStorage.getItem("perzo.displayName") || "").trim().slice(0, 40)); }
+      catch { /* The greeting works even when browser storage is unavailable. */ }
+    }
+    function onVisibilityChange() { if (!document.hidden) updateClock(); }
+    function onStorage(event: StorageEvent) { if (event.key === "perzo.displayName" || event.key === null) loadName(); }
+    updateClock(); loadName();
+    const timer = setInterval(updateClock, 60_000);
+    window.addEventListener("focus", updateClock);
+    window.addEventListener("storage", onStorage);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", updateClock);
+      window.removeEventListener("storage", onStorage);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, []);
 
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const updateHeight = () => {
+      if (viewport.scale === 1) shell.current?.style.setProperty("--visible-height", `${viewport.height}px`);
+      else shell.current?.style.removeProperty("--visible-height");
+    };
+    updateHeight();
+    viewport.addEventListener("resize", updateHeight);
+    return () => viewport.removeEventListener("resize", updateHeight);
+  }, []);
+  useEffect(() => {
+    if (messages.length || error) bottom.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "end" });
+  }, [messages, error, state]);
+  useEffect(() => {
+    if (!input.current) return;
+    input.current.style.height = "auto";
+    input.current.style.height = `${Math.min(input.current.scrollHeight, 120)}px`;
+  }, [draft]);
   useEffect(() => () => {
     controller.current?.abort();
     if (responseTimer.current) clearTimeout(responseTimer.current);
   }, []);
 
   async function requestReply(history: DisplayMessage[]) {
-    if (locked.current) return;
+    if (locked.current || listening) return;
     locked.current = true;
     if (responseTimer.current) clearTimeout(responseTimer.current);
-    setState("thinking");
-    setError(null);
+    setState("thinking"); setError(null);
     controller.current = new AbortController();
     const timeout = setTimeout(() => controller.current?.abort(), 60_000);
     try {
       const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: history.slice(-MAX_HISTORY_MESSAGES).map(({ role, content }) => ({ role, content })) }),
         signal: controller.current.signal,
       });
@@ -53,97 +131,125 @@ export function PerzoChat() {
       if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Something went wrong. Please try again.");
       if (typeof data.reply !== "string" || !data.reply.trim()) throw new Error("Perzo returned an empty reply. Please try again.");
       setMessages([...history, { id: crypto.randomUUID(), role: "assistant", content: data.reply }]);
-      setRetryMessages(null);
-      setState("responding");
+      setRetryMessages(null); setState("responding");
       responseTimer.current = setTimeout(() => setState("idle"), 2200);
     } catch (failure) {
       setError(failure instanceof Error && failure.name === "AbortError" ? "The reply took too long. Please try again." : failure instanceof Error ? failure.message : "Couldn't send your message. Please try again.");
-      setRetryMessages(history);
-      setState("idle");
+      setRetryMessages(history); setState("idle");
     } finally {
-      clearTimeout(timeout);
-      locked.current = false;
-      input.current?.focus();
+      clearTimeout(timeout); locked.current = false;
+      if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) input.current?.focus();
     }
   }
-
   function send(text = draft) {
     const content = text.trim();
-    if (locked.current || !content || content.length > MAX_MESSAGE_LENGTH) return;
+    if (locked.current || listening || !content || content.length > MAX_MESSAGE_LENGTH) return;
     const history: DisplayMessage[] = [...messages, { id: crypto.randomUUID(), role: "user", content }];
-    setMessages(history);
-    setDraft("");
-    setRetryMessages(null);
+    setMessages(history); setDraft(""); setRetryMessages(null);
     void requestReply(history);
   }
-
   function reset() {
-    if (locked.current) return;
+    if (locked.current || listening) return;
     if (responseTimer.current) clearTimeout(responseTimer.current);
-    setMessages([]); setDraft(""); setError(null); setRetryMessages(null); setState("idle");
-    input.current?.focus();
+    setWorkspaces(previous => {
+      const personal = previous.find(workspace => workspace.id === "personal");
+      const saved = personal?.messages.length ? [{ ...personal, id: crypto.randomUUID(), name: personal.messages.find(message => message.role === "user")?.content.slice(0, 48) || "Chat" }] : [];
+      return [...previous.filter(workspace => workspace.id !== "personal"), ...saved, { id: "personal", name: "Chat", messages: [], kind: "chat" }];
+    });
+    setActiveId("personal"); setDraft(""); setError(null); setRetryMessages(null); setState("idle");
+    drawer.current?.close();
+    if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) input.current?.focus();
   }
+  function openAbout() { drawer.current?.close(); setEditedName(displayName); setProfileNotice(null); about.current?.showModal(); }
+  function saveProfile(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = editedName.trim().slice(0, 40);
+    setDisplayName(name);
+    try {
+      if (name) localStorage.setItem("perzo.displayName", name);
+      else localStorage.removeItem("perzo.displayName");
+      about.current?.close();
+    } catch { setProfileNotice("Your name is set for this session. Your browser couldn’t save it for next time."); }
+  }
+  function openProject() {
+    if (locked.current || listening) return;
+    drawer.current?.close(); setProjectName(""); setProjectError(null); projectDialog.current?.showModal();
+  }
+  function selectWorkspace(id: string) {
+    if (locked.current || listening) return;
+    if (responseTimer.current) clearTimeout(responseTimer.current);
+    setActiveId(id); setDraft(""); setError(null); setRetryMessages(null); setState("idle"); drawer.current?.close();
+  }
+  function createProject(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = projectName.trim();
+    if (!name) { setProjectError("Give your project a name."); return; }
+    if (name.length > 60) { setProjectError("Use 60 characters or fewer."); return; }
+    const id = crypto.randomUUID();
+    setWorkspaces(previous => [...previous, { id, name, messages: [], kind: "project" }]);
+    selectWorkspace(id); projectDialog.current?.close();
+  }
+  const navigationProps = { busy: controlsBusy, onReset: reset, onAbout: openAbout, onProject: openProject, projects: workspaces, activeId, onSelect: selectWorkspace, displayName };
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <a className="brand" href="/" aria-label="Perzo home"><span className="brand-mark">p<span>✦</span></span>perzo<span className="brand-period">.</span></a>
-        <button className="new-chat" onClick={reset} disabled={busy}><span>＋</span> New conversation <span className="button-arrow">↗</span></button>
-        <div className="sidebar-label">YOUR SPACE</div>
-        <div className="active-nav"><span>☏</span> A moment with Perzo <span className="nav-dot" /></div>
-        <div className="sidebar-note"><span>✧</span><p>Big ideas.<br />Small steps.<br /><strong>A little company.</strong></p></div>
-        <div className="sidebar-bottom"><span className="session-dot" /><div>Just this conversation<small>Refresh for a fresh start</small></div></div>
-      </aside>
-
+    <div ref={shell} className={`app-shell ${messages.length ? "has-messages" : "is-welcome"}`}>
+      <aside className="sidebar" aria-label="Main navigation"><Navigation {...navigationProps} /></aside>
+      <dialog ref={drawer} className="navigation-dialog" aria-label="Navigation" onClick={event => { if (event.target === event.currentTarget) drawer.current?.close(); }}>
+        <div className="drawer-content"><button className="icon-button drawer-close" onClick={() => drawer.current?.close()} aria-label="Close navigation"><Icon name="close" /></button><Navigation {...navigationProps} /></div>
+      </dialog>
+      <dialog ref={about} className="about-dialog" aria-labelledby="about-title" onClick={event => { if (event.target === event.currentTarget) about.current?.close(); }}>
+        <button className="icon-button about-close" onClick={() => about.current?.close()} aria-label="Close about Perzo"><Icon name="close" /></button>
+        <BrandMark className="about-brand" /><p className="eyebrow">YOUR PERSONAL COMPANION</p><h2 id="about-title">Make it yours.</h2>
+        <form className="profile-form" onSubmit={saveProfile}><label htmlFor="display-name">What should Perzo call you?</label><input id="display-name" value={editedName} onChange={event => setEditedName(event.target.value)} maxLength={40} autoComplete="given-name" placeholder="Your name (optional)" aria-describedby="profile-note" /><p className="project-note" id="profile-note">Your name is saved in this browser. Greetings follow your device’s local time.</p>{profileNotice && <p role="status" className="project-note">{profileNotice}</p>}<button type="submit" className="about-done">Save preferences <Icon name="arrow" size={18} /></button></form>
+        <p className="about-detail">Chats and projects clear when you refresh. Perzo can make mistakes, so check anything important.</p>
+      </dialog>
+      <dialog ref={projectDialog} className="about-dialog project-dialog" aria-labelledby="project-title">
+        <button className="icon-button about-close" onClick={() => projectDialog.current?.close()} aria-label="Close new project"><Icon name="close" /></button>
+        <p className="eyebrow">A SPACE FOR YOUR IDEAS</p><h2 id="project-title">New project</h2>
+        <p>Give an idea its own space to grow.</p>
+        <form onSubmit={createProject}>
+          <label htmlFor="project-name">Project name</label>
+          <input id="project-name" value={projectName} onChange={event => { setProjectName(event.target.value); setProjectError(null); }} maxLength={60} placeholder="e.g. My next big idea" autoFocus aria-describedby={projectError ? "project-error" : "project-note"} />
+          {projectError && <p id="project-error" className="project-error" role="alert">{projectError}</p>}
+          <p className="project-note" id="project-note">Projects and chats stay here until you refresh.</p>
+          <button className="about-done" type="submit" disabled={!projectName.trim() || busy}>Create project <Icon name="arrow" size={18} /></button>
+        </form>
+      </dialog>
       <main className="main-panel">
-        <header className="topbar"><div><span className="header-title">Your everyday companion</span><span className="header-subtitle">A little help, a little heart.</span></div><span className="version-badge"><span /> Perzo · v0.1</span></header>
-        <div className="workspace">
-          <section className="chat-column" aria-label="Chat with Perzo">
-            <div className="conversation-area">
-              {messages.length === 0 ? (
-                <div className="welcome">
-                  <div className="welcome-eyebrow"><span /> A SMALL FRIEND FOR YOUR BIG DAY</div>
-                  <h1>Hey, I’m Perzo<span>.</span><br /><span className="muted-heading">What’s on your mind?</span></h1>
-                  <p>A messy idea, a curious question, or just a hello.<br className="desktop-break" /> We can figure it out together.</p>
-                  <div className="welcome-pet"><Pet state={state} /><span className="hello-note">happy you’re here <span>↙</span></span></div>
-                  <div className="suggestion-grid">{suggestions.map(suggestion => <button key={suggestion.title} onClick={() => send(suggestion.message)} disabled={busy}><span className="suggestion-icon">{suggestion.icon}</span><span>{suggestion.title}</span><span className="suggestion-arrow">↗</span></button>)}</div>
-                </div>
-              ) : (
-                <div className="message-list" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text">
-                  <div className="conversation-start">A little space to think together</div>
-                  {messages.map(message => <article className={`message message-${message.role}`} key={message.id}>
-                    <div className="message-avatar" aria-hidden="true">{message.role === "assistant" ? "✦" : "Y"}</div>
-                    <div className="message-content"><div className="message-author">{message.role === "assistant" ? "Perzo" : "You"}</div><p>{message.content}</p></div>
-                  </article>)}
-                  {busy && <div className="message message-assistant"><div className="message-avatar" aria-hidden="true">✦</div><div className="message-content"><div className="message-author">Perzo</div><div className="typing-indicator" role="status" aria-label="Perzo is thinking"><i /><i /><i /></div></div></div>}
-                </div>
-              )}
-              {error && <div className="error-notice" role="alert"><p>{error}</p>{retryMessages && <button onClick={() => void requestReply(retryMessages)} disabled={busy}>Try again ↗</button>}</div>}
-              <div ref={bottom} />
-            </div>
-
-            <div className="composer-wrap">
-              <form className="composer" onSubmit={event => { event.preventDefault(); send(); }}>
-                <label className="sr-only" htmlFor="message">Message Perzo</label>
-                <textarea id="message" ref={input} value={draft} maxLength={MAX_MESSAGE_LENGTH} rows={2} placeholder="Tell Perzo what’s on your mind…" aria-describedby="composer-hint" onChange={event => setDraft(event.target.value)} onKeyDown={event => {
-                  if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); }
-                }} />
-                <div className="composer-bottom"><span className="composer-spark" aria-hidden="true">✧</span><span className="character-count">{draft.length.toLocaleString()} / {MAX_MESSAGE_LENGTH.toLocaleString()}</span><button className="send-button" type="submit" disabled={busy || !draft.trim()} aria-label={busy ? "Waiting for Perzo" : "Send message"}>{busy ? <span className="send-spinner" /> : <span>↑</span>}</button></div>
-              </form>
-              <div className="composer-footer" id="composer-hint"><span>Enter to send <span className="hint-divider">·</span> Shift + Enter for a new line</span><span>Perzo can make mistakes. Stay curious.</span></div>
-            </div>
-          </section>
-
-          <aside className="companion-card" aria-label="Perzo’s status">
-            <div className="companion-heading"><span>MEET YOUR COMPANION</span><span>✧</span></div>
-            <div className="companion-portrait"><Pet state={state} /></div>
-            <h2>A little Perzo.<br />A lot of possibility.</h2>
-            <div className="pet-status" role="status"><span className={busy ? "status-pulse" : ""} />{stateLabels[state]}</div>
-            <div className="companion-divider" />
-            <p>Here to untangle ideas,<br />explore the everyday,<br />and keep you company.</p>
-            <div className="companion-footnote">ONE CONVERSATION AT A TIME <span>↗</span></div>
-          </aside>
-        </div>
+        <header className="topbar">
+          <button className="icon-button menu-button" onClick={() => drawer.current?.showModal()} aria-label="Open navigation"><Icon name="menu" /></button>
+          <div className="header-desktop-brand"><BrandMark /><span>Perzo</span></div>
+          {(messages.length > 0 || activeId !== "personal") && <div className="header-center"><span className="header-title">{activeId === "personal" ? "New chat" : activeWorkspace.name}</span></div>}
+          <button className="icon-button" onClick={reset} disabled={controlsBusy} aria-label="New chat" title="New chat"><Icon name="new-chat" size={19} /></button>
+        </header>
+        <section className="chat-column" aria-label="Chat with Perzo">
+          <div className="conversation-area">
+            {messages.length === 0 ? (
+              <div className="minimal-welcome"><div className="welcome-center"><BrandMark className="welcome-brand" /><h1>{hour === null ? "What’s on your mind?" : getGreeting(hour, displayName)}</h1></div></div>
+            ) : (
+              <div className="message-list" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text">
+                <div className="assistant-intro"><BrandMark /><div><span>{displayName ? `Hey, ${displayName}.` : "Hey there."}</span><p>What’s on your mind?</p></div></div>
+                {messages.map(message => <article className={`message message-${message.role}`} key={message.id}>{message.role === "assistant" && <BrandMark className="message-avatar" />}<div className="message-content"><span className="message-author">{message.role === "assistant" ? "Perzo" : displayName || "You"}</span><p>{message.content}</p></div></article>)}
+                {busy && <div className="message message-assistant"><BrandMark className="message-avatar thinking-avatar" /><div className="message-content"><span className="message-author">Perzo</span><div className="typing-indicator" role="status" aria-label="Perzo is thinking"><i /><i /><i /></div></div></div>}
+              </div>
+            )}
+            {error && <div className="error-notice" role="alert"><p>{error}</p>{retryMessages && <button onClick={() => void requestReply(retryMessages)} disabled={controlsBusy}>Try again <Icon name="arrow" size={15} /></button>}</div>}
+            <div ref={bottom} />
+          </div>
+          <div className="composer-wrap">
+            {composerNotice && <p className="composer-notice" role="status">{composerNotice}</p>}
+            {listening && <p className="composer-notice" role="status">Listening… tap stop when you’re done. Review your words before sending.</p>}
+            <form className="composer" onSubmit={event => { event.preventDefault(); send(); }}>
+              <button className="composer-add" type="button" onClick={() => drawer.current?.showModal()} disabled={controlsBusy} aria-label="More actions" title="New chat, projects and preferences"><Icon name="plus" size={22} /></button>
+              <div className="composer-field"><label className="sr-only" htmlFor="message">Message Perzo</label><textarea id="message" ref={input} value={draft} maxLength={MAX_MESSAGE_LENGTH} rows={1} placeholder="Type a message…" aria-describedby="composer-hint" autoCapitalize="sentences" spellCheck disabled={listening} onChange={event => setDraft(event.target.value)} onKeyDown={event => {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); }
+              }} /></div>
+              <VoiceInput disabled={busy} onTranscript={text => setDraft(previous => `${previous.trimEnd()}${previous.trim() ? " " : ""}${text}`.slice(0, MAX_MESSAGE_LENGTH))} onListeningChange={setListening} onError={setComposerNotice} />
+              <button className="send-button" type="submit" disabled={controlsBusy || !draft.trim()} aria-label={busy ? "Waiting for Perzo" : "Send message"}>{busy ? <span className="send-spinner" /> : <Icon name="send" size={21} />}</button>
+            </form>
+            <div className="composer-footer" id="composer-hint"><span className="keyboard-hint">Enter to send · Shift + Enter for a new line</span><span>{draft.length > MAX_MESSAGE_LENGTH - 500 ? `${draft.length.toLocaleString()} / ${MAX_MESSAGE_LENGTH.toLocaleString()}` : "A little AI. A little company."}</span></div>
+          </div>
+        </section>
       </main>
     </div>
   );
