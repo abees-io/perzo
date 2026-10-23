@@ -30,7 +30,7 @@ Requires Node.js 20.9 or newer and npm.
 - Errors show a dismissable banner with a **Try again** button.
 - Blank or oversized messages (over 4,000 characters) cannot be sent.
 - **New session** opens a fresh chat and keeps previous conversations in Recents for the current browser session. Up to 20 recent messages are sent as context; older messages are trimmed when needed to fit the request size limit. Chats clear on refresh.
-- **Projects** creates a named workspace with its own chat history.
+- **Projects** creates a named workspace with its own chat history. Double-tap or double-click a saved project in Recents to open it; keyboard users can press Enter.
 - **Personalize** lets you set a display name (saved in browser local storage).
 - The **microphone** button uses browser speech recognition when supported.
 

@@ -38,6 +38,7 @@ function Navigation({
   const [query, setQuery] = useState("");
   const [showAll, setShowAll] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
+  const lastProjectTap = useRef<{ id: string; time: number } | null>(null);
   useEffect(() => {
     if (searchOpen) searchInput.current?.focus();
   }, [searchOpen]);
@@ -101,8 +102,33 @@ function Navigation({
           {visibleSpaces.map((project) => (
             <button
               key={project.id}
-              onClick={() => onSelect(project.id)}
+              onClick={(event) => {
+                if (project.kind !== "project" || event.detail === 0) {
+                  lastProjectTap.current = null;
+                  onSelect(project.id);
+                  return;
+                }
+                const previous = lastProjectTap.current;
+                const time = performance.now();
+                if (
+                  event.detail >= 2 ||
+                  (previous?.id === project.id && time - previous.time <= 500)
+                ) {
+                  lastProjectTap.current = null;
+                  onSelect(project.id);
+                } else {
+                  lastProjectTap.current = { id: project.id, time };
+                }
+              }}
+              onBlur={() => {
+                lastProjectTap.current = null;
+              }}
               disabled={busy}
+              title={
+                project.kind === "project"
+                  ? "Double-tap or double-click to open project"
+                  : undefined
+              }
               aria-current={activeId === project.id ? "page" : undefined}
             >
               <span>
@@ -115,6 +141,9 @@ function Navigation({
             </button>
           ))}
         </div>
+        {visibleSpaces.some((project) => project.kind === "project") && (
+          <p className="nav-empty">Double-tap a project to open it.</p>
+        )}
         {(showAll || query) && recentSpaces.length === 0 && (
           <p className="nav-empty">
             {query ? "No matching chats or projects." : "Your recent chats will appear here."}
