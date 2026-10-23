@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import type { ChatMessage } from "../chat";
+import { getModel } from "../models";
 
 export const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 export const NVIDIA_DEFAULT_MODEL = "meta/llama-3.2-11b-vision-instruct";
@@ -76,6 +77,8 @@ export async function getNvidiaReply({
   }
 
   const resolvedModel = model?.trim() || process.env.NVIDIA_MODEL?.trim() || NVIDIA_DEFAULT_MODEL;
+  if (getModel(resolvedModel)?.kind === "pose") throw new NvidiaAPIError("Body Pose must be used through the video tool.", 400);
+  if (messages.some(message => message.image) && !getModel(resolvedModel)?.vision) throw new NvidiaAPIError("This model accepts text only. Choose a model marked Chat + photos, or start a new chat without photos.", 400);
 
   try {
     if (onDelta) {
@@ -108,7 +111,7 @@ export async function getNvidiaReply({
     const message = completion.choices?.[0]?.message as
       | (OpenAI.Chat.Completions.ChatCompletionMessage & { reasoning_content?: string })
       | undefined;
-    const reply = (message?.content || message?.reasoning_content)?.trim();
+    const reply = message?.content?.trim();
     if (!reply) {
       throw new NvidiaAPIError("NVIDIA API returned an empty response. Please try again.", 502);
     }
@@ -125,7 +128,7 @@ export async function getNvidiaReply({
           : status === 429
           ? "NVIDIA API rate limit reached. Please wait a moment and try again."
           : status === 404
-          ? `NVIDIA model "${model}" is unavailable. Check model name or NVIDIA account access.`
+          ? `NVIDIA model "${resolvedModel}" is unavailable. Choose another model or check NVIDIA account access.`
           : `NVIDIA API error (${status}): ${error.message || "Failed to communicate with NVIDIA API."}`;
       throw new NvidiaAPIError(message, status === 429 ? 429 : status === 401 || status === 403 ? 401 : 502);
     }

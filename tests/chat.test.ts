@@ -43,7 +43,7 @@ test("extracts and sanitizes model selection from request body", () => {
   const { extractModel } = require("../src/lib/chat");
   assert.equal(extractModel({ messages: [{ role: "user", content: "hi" }], model: "meta/llama-3.2-11b-vision-instruct" }), "meta/llama-3.2-11b-vision-instruct");
   assert.equal(extractModel({ model: "  nvidia/nemotron-3.5-super-vl-120b-a12b  " }), "nvidia/nemotron-3.5-super-vl-120b-a12b");
-  assert.equal(extractModel({ model: 123 }), undefined);
+  assert.throws(() => extractModel({ model: 123 }), ChatValidationError);
   assert.equal(extractModel({}), undefined);
   assert.equal(extractModel(null), undefined);
 });

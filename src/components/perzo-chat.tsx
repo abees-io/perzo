@@ -8,7 +8,9 @@ import { VoiceInput } from "./voice-input";
 import { readReplyStream } from "@/lib/reply-stream";
 import { preparePhoto } from "@/lib/photo";
 import { getGreeting } from "@/lib/greeting";
-import { AVAILABLE_MODELS, DEFAULT_MODEL_ID } from "@/lib/models";
+import { DEFAULT_MODEL_ID, getModel, sanitizeModelId } from "@/lib/models";
+import { ModelPicker } from "./model-picker";
+import { BodyPosePanel } from "./body-pose-panel";
 
 type DisplayMessage = ChatMessage & { id: string };
 type AssistantState = "idle" | "thinking" | "working" | "generating" | "responding";
@@ -62,28 +64,17 @@ export function PerzoChat() {
   const [sound, setSound] = useState(true);
   const [haptics, setHaptics] = useState(true);
   const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL_ID);
-  const [customModelInput, setCustomModelInput] = useState("");
-  const [modelMenuOpen, setModelMenuOpen] = useState(false);
-  const modelMenuRef = useRef<HTMLDivElement>(null);
-
+  const [poseBusy, setPoseBusy] = useState(false);
+  const currentModel = getModel(selectedModel)!;
+  const isPose = currentModel.kind === "pose";
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("perzo.selectedModel");
-      if (saved) setSelectedModel(saved);
-    } catch {}
+    try { const saved = sanitizeModelId(localStorage.getItem("perzo.selectedModel")); if (saved) setSelectedModel(saved); } catch {}
   }, []);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (modelMenuRef.current && !modelMenuRef.current.contains(event.target as Node)) {
-        setModelMenuOpen(false);
-      }
-    }
-    if (modelMenuOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [modelMenuOpen]);
+  function changeModel(id: string) {
+    if (photo && !getModel(id)?.vision) { setComposerNotice("Remove the attached photo before choosing a text model or Body Pose."); return; }
+    setSelectedModel(id); setError(null); setComposerNotice(null);
+    try { localStorage.setItem("perzo.selectedModel", id); } catch {}
+  }
 
   const photoInput = useRef<HTMLInputElement>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
@@ -105,6 +96,7 @@ export function PerzoChat() {
   }
   async function attachPhoto(file?: File) {
     if (!file) return;
+    if (!currentModel.vision) { setComposerNotice("Choose a model marked Chat + photos to attach an image."); return; }
     setPreparing(true); setComposerNotice(null);
     try { setPhoto(await preparePhoto(file)); setExpanded(true); }
     catch (failure) { setComposerNotice(failure instanceof Error ? failure.message : "Couldn’t open this photo."); }
@@ -124,7 +116,7 @@ export function PerzoChat() {
   const responseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const controller = useRef<AbortController | null>(null);
   const busy = state === "thinking" || state === "working" || state === "generating";
-  const controlsBusy = busy || listening || preparing;
+  const controlsBusy = busy || listening || preparing || poseBusy;
   useEffect(() => { if ((error || composerNotice) && haptics) navigator.vibrate?.([35, 45, 35]); }, [error, composerNotice, haptics]);
   useEffect(() => () => { void audio.current?.close().catch(() => {}); }, []);
 
@@ -180,7 +172,7 @@ export function PerzoChat() {
   }, []);
 
   async function requestReply(history: DisplayMessage[]) {
-    if (locked.current || preparing || listening) return;
+    if (locked.current || preparing || listening || poseBusy || isPose) return;
     unlockAudio();
     locked.current = true;
     if (responseTimer.current) clearTimeout(responseTimer.current);
@@ -191,7 +183,7 @@ export function PerzoChat() {
       const response = await fetch("/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
         body: JSON.stringify({
-          messages: history.slice(-MAX_HISTORY_MESSAGES).map(({ role, content, image }, index, recent) => ({ role, content, ...(image && index === recent.findLastIndex(message => message.image) ? { image } : {}) })),
+          messages: history.slice(-MAX_HISTORY_MESSAGES).map(({ role, content, image }, index, recent) => ({ role, content, ...(currentModel.vision && image && index === recent.findLastIndex(message => message.image) ? { image } : {}) })),
           model: selectedModel,
         }),
         signal: controller.current.signal,
@@ -230,7 +222,7 @@ export function PerzoChat() {
   }
   function send(text = draft) {
     const content = text.trim() || (photo ? "What’s in this photo?" : "");
-    if (locked.current || preparing || listening || !content || content.length > MAX_MESSAGE_LENGTH) return;
+    if (locked.current || preparing || listening || poseBusy || isPose || !content || content.length > MAX_MESSAGE_LENGTH) return;
     const history: DisplayMessage[] = [...messages, { id: crypto.randomUUID(), role: "user", content, ...(photo ? { image: photo } : {}) }];
     setMessages(history); setPhoto(undefined); setExpanded(false); setDraft(""); setRetryMessages(null);
     void requestReply(history);
@@ -307,91 +299,11 @@ export function PerzoChat() {
           <button className="icon-button menu-button" onClick={() => drawer.current?.showModal()} aria-label="Open navigation"><Icon name="menu" /></button>
           <div className="header-desktop-brand"><BrandMark state={state === "generating" ? "responding" : state} /><span>Perzo</span></div>
           {(messages.length > 0 || activeId !== "personal") && <div className="header-center"><span className="header-title">{activeId === "personal" ? "New chat" : activeWorkspace.name}</span></div>}
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <div ref={modelMenuRef} className="model-selector-wrap">
-              <button
-                type="button"
-                className={`model-badge-btn ${modelMenuOpen ? "is-open" : ""}`}
-                onClick={() => setModelMenuOpen(!modelMenuOpen)}
-                aria-expanded={modelMenuOpen}
-                title="Switch NVIDIA AI Model"
-              >
-                <span>{AVAILABLE_MODELS.find(m => m.id === selectedModel)?.icon || "⚡"}</span>
-                <span>{AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name || selectedModel.split("/").pop()}</span>
-                <Icon name="chevron" size={14} />
-              </button>
-              {modelMenuOpen && (
-                <div className="model-dropdown-menu">
-                  <div className="model-dropdown-header">
-                    <span>NVIDIA NIM Models</span>
-                    <span className="model-subtag">One API Key</span>
-                  </div>
-                  <div className="model-list">
-                    {AVAILABLE_MODELS.map(model => (
-                      <button
-                        key={model.id}
-                        type="button"
-                        className={`model-option ${selectedModel === model.id ? "is-active" : ""}`}
-                        onClick={() => {
-                          setSelectedModel(model.id);
-                          try { localStorage.setItem("perzo.selectedModel", model.id); } catch {}
-                          setModelMenuOpen(false);
-                        }}
-                      >
-                        <div className="model-option-top">
-                          <span className="model-option-icon">{model.icon}</span>
-                          <span className="model-option-title">{model.name}</span>
-                          <span className="model-tag-pill">{model.tag}</span>
-                        </div>
-                        <p className="model-option-desc">{model.description}</p>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="model-custom-box">
-                    <label htmlFor="custom-model-id">Or use any custom NVIDIA model:</label>
-                    <div className="model-custom-input-row">
-                      <input
-                        id="custom-model-id"
-                        value={customModelInput}
-                        onChange={e => setCustomModelInput(e.target.value)}
-                        placeholder="e.g. 01-ai/yi-large"
-                        onKeyDown={e => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            const val = customModelInput.trim();
-                            if (val) {
-                              setSelectedModel(val);
-                              try { localStorage.setItem("perzo.selectedModel", val); } catch {}
-                              setModelMenuOpen(false);
-                            }
-                          }
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className="model-custom-apply"
-                        onClick={() => {
-                          const val = customModelInput.trim();
-                          if (val) {
-                            setSelectedModel(val);
-                            try { localStorage.setItem("perzo.selectedModel", val); } catch {}
-                            setModelMenuOpen(false);
-                          }
-                        }}
-                      >
-                        Apply
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            <button className="icon-button" onClick={reset} disabled={controlsBusy} aria-label="New chat" title="New chat"><Icon name="new-chat" size={19} /></button>
-          </div>
+          <button className="icon-button" onClick={reset} disabled={controlsBusy} aria-label="New chat" title="New chat"><Icon name="new-chat" size={19} /></button>
         </header>
         <section className="chat-column" aria-label="Chat with Perzo">
           <div className="conversation-area">
-            {messages.length === 0 ? (
+            {isPose ? <BodyPosePanel onBusy={setPoseBusy} /> : messages.length === 0 ? (
               <div className="minimal-welcome"><div className="welcome-center"><BrandMark className="welcome-brand" /><h1>{hour === null ? "What’s on your mind?" : getGreeting(hour, displayName)}</h1></div></div>
             ) : (
               <div className="message-list" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text">
@@ -419,6 +331,8 @@ export function PerzoChat() {
             <div ref={bottom} />
           </div>
           <div className="composer-wrap">
+            <div className={`composer-model-surface ${isPose ? "is-pose" : ""}`}><ModelPicker value={selectedModel} disabled={controlsBusy} onChange={changeModel} />
+            {!isPose && <>
             {composerNotice && <p className="composer-notice" role="status">{composerNotice}</p>}
             {listening && <p className="composer-notice" role="status">Listening… tap stop when you’re done. Review your words before sending.</p>}
             <form className={`composer media-composer ${expanded || photo ? "is-expanded" : ""}`} onSubmit={event => { event.preventDefault(); send(); }}>
@@ -426,9 +340,9 @@ export function PerzoChat() {
               <input hidden ref={cameraInput} type="file" accept="image/*" capture="environment" onChange={event => { void attachPhoto(event.target.files?.[0]); event.target.value = ""; }} />
               <div id="media-panel" className="media-panel" inert={!expanded && !photo}><div className="media-panel-inner">
                 {photo && <div className="photo-preview"><img src={photo} alt="Photo ready to send" /><button type="button" disabled={controlsBusy} aria-label="Remove photo" onClick={() => setPhoto(undefined)}><Icon name="close" size={16} /></button></div>}
-                <div className="media-actions"><button type="button" disabled={controlsBusy} onClick={() => photoInput.current?.click()}><Icon name="image" />Add photo</button><button type="button" disabled={controlsBusy} onClick={() => cameraInput.current?.click()}><Icon name="camera" />Camera</button></div>
+                <div className="media-actions"><button type="button" disabled={controlsBusy || !currentModel.vision} onClick={() => photoInput.current?.click()}><Icon name="image" />Add photo</button><button type="button" disabled={controlsBusy || !currentModel.vision} onClick={() => cameraInput.current?.click()}><Icon name="camera" />Camera</button></div>
                 <div className="feedback-options"><label><input type="checkbox" checked={sound} onChange={event => { setSound(event.target.checked); if (event.target.checked) unlockAudio(); }} />Reply sound</label><label><input type="checkbox" checked={haptics} onChange={event => setHaptics(event.target.checked)} />Error vibration</label></div>
-                <p>One photo at a time · Videos aren’t supported yet.</p>
+                <p>{currentModel.vision ? "One photo at a time · Use Body Pose for video analysis." : "Text model · Switch to Chat + photos for image uploads."}</p>
               </div></div>
               <button className="composer-add" type="button" onClick={() => setExpanded(!expanded)} disabled={controlsBusy} aria-expanded={expanded} aria-controls="media-panel" aria-label={expanded ? "Collapse attachments" : "Add media"}><Icon name={expanded ? "close" : "attachment"} size={21} /></button>
               <div className="composer-field"><label className="sr-only" htmlFor="message">Message Perzo</label><textarea id="message" ref={input} value={draft} maxLength={MAX_MESSAGE_LENGTH} rows={1} placeholder={preparing ? "Preparing photo…" : "Ask me anything…"} aria-describedby="composer-hint" autoCapitalize="sentences" spellCheck disabled={listening} onChange={event => { setDraft(event.target.value); if (error) setError(null); }} onKeyDown={event => {
@@ -438,6 +352,8 @@ export function PerzoChat() {
               <VoiceInput disabled={busy || preparing} onTranscript={text => setDraft(previous => `${previous.trimEnd()}${previous.trim() ? " " : ""}${text}`.slice(0, MAX_MESSAGE_LENGTH))} onListeningChange={setListening} onError={setComposerNotice} />
               <button className="send-button" type="submit" disabled={controlsBusy || (!draft.trim() && !photo)} aria-label={busy ? "Waiting for Perzo" : "Send message"}>{busy ? <span className="send-spinner" /> : <Icon name="send" size={21} />}</button>
             </form>
+            </>}
+            </div>
             <div className="composer-footer" id="composer-hint"><span className="keyboard-hint">Enter to send · Shift + Enter for a new line</span><span>{draft.length > MAX_MESSAGE_LENGTH - 500 ? `${draft.length.toLocaleString()} / ${MAX_MESSAGE_LENGTH.toLocaleString()}` : "A little AI. A little company."}</span></div>
           </div>
         </section>

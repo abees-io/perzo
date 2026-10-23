@@ -10,19 +10,21 @@
     "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
+    "@grpc/grpc-js": "^1.14.6",
+    "@grpc/proto-loader": "^0.8.1",
     "next": "latest",
+    "openai": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "openai": "latest",
     "server-only": "latest"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "latest",
-    "tailwindcss": "latest",
-    "typescript": "latest",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "tsx": "latest"
+    "tailwindcss": "latest",
+    "tsx": "latest",
+    "typescript": "latest"
   }
 }

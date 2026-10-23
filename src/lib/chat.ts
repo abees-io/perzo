@@ -1,3 +1,4 @@
+import { getModel, sanitizeModelId } from "./models";
 export const MAX_MESSAGE_LENGTH = 4000;
 export const MAX_HISTORY_MESSAGES = 20;
 export const MAX_REQUEST_BYTES = 350_000;
@@ -40,11 +41,10 @@ export function validateMessages(body: unknown): ChatMessage[] {
 }
 
 export function extractModel(body: unknown): string | undefined {
-  if (body && typeof body === "object" && "model" in body && typeof (body as { model?: unknown }).model === "string") {
-    const trimmed = (body as { model: string }).model.trim();
-    if (trimmed && /^[a-zA-Z0-9_\-\.\/]{1,120}$/.test(trimmed)) {
-      return trimmed;
-    }
+  if (body && typeof body === "object" && "model" in body) {
+    const model = sanitizeModelId(body.model);
+    if (!model || getModel(model)?.kind !== "chat") throw new ChatValidationError("Choose a chat model from the model picker. Body Pose uses the video tool.");
+    return model;
   }
   return undefined;
 }

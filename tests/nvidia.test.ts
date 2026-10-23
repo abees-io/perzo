@@ -145,3 +145,9 @@ test("streams answer text and excludes reasoning deltas", async () => {
   assert.deepEqual(updates, ["Hey", " there!"]);
   assert.equal(reply, "Hey there!");
 });
+
+test("text-only models reject photo requests before calling NVIDIA", async () => {
+  let called = false;
+  await assert.rejects(getNvidiaReply({ ...baseRequest, model: "nvidia/nemotron-3.5-lightning-30b-a3b", messages: [{ role: "user", content: "Describe", image: "data:image/png;base64,YQ==" }], fetcher: async () => { called = true; return Response.json({}); } }), /accepts text only/);
+  assert.equal(called, false);
+});
