@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import type { ChatMessage } from "../chat";
 
 export const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
-export const NVIDIA_DEFAULT_MODEL = "nvidia/nemotron-3.5-super-vl-120b-a12b";
+export const NVIDIA_DEFAULT_MODEL = "meta/llama-3.2-11b-vision-instruct";
 
 export class NvidiaConfigurationError extends Error {
   constructor(message: string) {
@@ -81,7 +81,10 @@ export async function getNvidiaReply({
       { signal }
     );
 
-    const reply = completion.choices?.[0]?.message?.content?.trim();
+    const message = completion.choices?.[0]?.message as
+      | (OpenAI.Chat.Completions.ChatCompletionMessage & { reasoning_content?: string })
+      | undefined;
+    const reply = (message?.content || message?.reasoning_content)?.trim();
     if (!reply) {
       throw new NvidiaAPIError("NVIDIA API returned an empty response. Please try again.", 502);
     }
