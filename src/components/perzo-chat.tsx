@@ -5,10 +5,12 @@ import { MAX_HISTORY_MESSAGES, MAX_MESSAGE_LENGTH, type ChatMessage } from "@/li
 import { BrandMark } from "./brand";
 import { Icon } from "./icon";
 import { VoiceInput } from "./voice-input";
+import { readReplyStream } from "@/lib/reply-stream";
+import { preparePhoto } from "@/lib/photo";
 import { getGreeting } from "@/lib/greeting";
 
 type DisplayMessage = ChatMessage & { id: string };
-type AssistantState = "idle" | "thinking" | "responding";
+type AssistantState = "idle" | "thinking" | "working" | "generating" | "responding";
 type Workspace = { id: string; name: string; messages: DisplayMessage[]; kind: "chat" | "project" };
 
 function Navigation({ busy, onReset, onAbout, onProject, projects, activeId, onSelect, displayName }: { busy: boolean; onReset: () => void; onAbout: () => void; onProject: () => void; projects: Workspace[]; activeId: string; onSelect: (id: string) => void; displayName: string }) {
@@ -53,6 +55,36 @@ export function PerzoChat() {
   const [profileNotice, setProfileNotice] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const [composerNotice, setComposerNotice] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [photo, setPhoto] = useState<string | undefined>();
+  const [preparing, setPreparing] = useState(false);
+  const [sound, setSound] = useState(true);
+  const [haptics, setHaptics] = useState(true);
+  const photoInput = useRef<HTMLInputElement>(null);
+  const cameraInput = useRef<HTMLInputElement>(null);
+  const audio = useRef<AudioContext | null>(null);
+  function unlockAudio() {
+    try { if (!audio.current) audio.current = new AudioContext(); void audio.current.resume().catch(() => {}); } catch { /* Optional audio isn't available everywhere. */ }
+  }
+  function chime() {
+    if (!sound || !audio.current || audio.current.state !== "running") return;
+    const context = audio.current;
+    const oscillator = context.createOscillator(), gain = context.createGain();
+    oscillator.connect(gain); gain.connect(context.destination);
+    oscillator.frequency.setValueAtTime(660, context.currentTime);
+    oscillator.frequency.setValueAtTime(880, context.currentTime + .1);
+    gain.gain.setValueAtTime(.035, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(.001, context.currentTime + .3);
+    oscillator.start(); oscillator.stop(context.currentTime + .3);
+    oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
+  }
+  async function attachPhoto(file?: File) {
+    if (!file) return;
+    setPreparing(true); setComposerNotice(null);
+    try { setPhoto(await preparePhoto(file)); setExpanded(true); }
+    catch (failure) { setComposerNotice(failure instanceof Error ? failure.message : "Couldn’t open this photo."); }
+    finally { setPreparing(false); }
+  }
   const [draft, setDraft] = useState("");
   const [state, setState] = useState<AssistantState>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -66,8 +98,16 @@ export function PerzoChat() {
   const projectDialog = useRef<HTMLDialogElement>(null);
   const responseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const controller = useRef<AbortController | null>(null);
-  const busy = state === "thinking";
-  const controlsBusy = busy || listening;
+  const busy = state === "thinking" || state === "working" || state === "generating";
+  const controlsBusy = busy || listening || preparing;
+  useEffect(() => { if ((error || composerNotice) && haptics) navigator.vibrate?.([35, 45, 35]); }, [error, composerNotice, haptics]);
+  useEffect(() => () => { void audio.current?.close().catch(() => {}); }, []);
+
+  useEffect(() => {
+    if (state !== "thinking") return;
+    const timer = setTimeout(() => setState("working"), 4000);
+    return () => clearTimeout(timer);
+  }, [state]);
 
   useEffect(() => {
     function updateClock() { setHour(new Date().getHours()); }
@@ -115,19 +155,27 @@ export function PerzoChat() {
   }, []);
 
   async function requestReply(history: DisplayMessage[]) {
-    if (locked.current || listening) return;
+    if (locked.current || preparing || listening) return;
+    unlockAudio();
     locked.current = true;
     if (responseTimer.current) clearTimeout(responseTimer.current);
     setState("thinking"); setError(null);
     controller.current = new AbortController();
-    const timeout = setTimeout(() => controller.current?.abort(), 240_000);
+    const timeout = setTimeout(() => controller.current?.abort(), 60_000);
     try {
       const response = await fetch("/api/chat", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history.slice(-MAX_HISTORY_MESSAGES).map(({ role, content }) => ({ role, content })) }),
+        method: "POST", headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
+        body: JSON.stringify({ messages: history.slice(-MAX_HISTORY_MESSAGES).map(({ role, content, image }, index, recent) => ({ role, content, ...(image && index === recent.findLastIndex(message => message.image) ? { image } : {}) })) }),
         signal: controller.current.signal,
       });
+      const replyId = crypto.randomUUID();
       let data: { reply?: string; error?: string } = {};
+      if (response.ok && response.headers.get("content-type")?.includes("application/x-ndjson") && response.body) {
+        data.reply = await readReplyStream(response.body, content => {
+          setState("generating");
+          setMessages([...history, { id: replyId, role: "assistant", content }]);
+        });
+      } else {
       try {
         data = await response.json();
       } catch {
@@ -137,12 +185,14 @@ export function PerzoChat() {
             : `Network error (${response.status}: ${response.statusText || "Request failed"}).`
         );
       }
+      }
       if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Something went wrong. Please try again.");
       if (typeof data.reply !== "string" || !data.reply.trim()) throw new Error("Perzo returned an empty reply. Please try again.");
-      setMessages([...history, { id: crypto.randomUUID(), role: "assistant", content: data.reply }]);
-      setRetryMessages(null); setState("responding");
+      setMessages([...history, { id: replyId, role: "assistant", content: data.reply }]);
+      setRetryMessages(null); setState("responding"); chime();
       responseTimer.current = setTimeout(() => setState("idle"), 2200);
     } catch (failure) {
+      setMessages(history);
       setError(failure instanceof Error && failure.name === "AbortError" ? "The reply took too long. Please try again." : failure instanceof Error ? failure.message : "Couldn't send your message. Please try again.");
       setRetryMessages(history); setState("idle");
     } finally {
@@ -151,10 +201,10 @@ export function PerzoChat() {
     }
   }
   function send(text = draft) {
-    const content = text.trim();
-    if (locked.current || listening || !content || content.length > MAX_MESSAGE_LENGTH) return;
-    const history: DisplayMessage[] = [...messages, { id: crypto.randomUUID(), role: "user", content }];
-    setMessages(history); setDraft(""); setRetryMessages(null);
+    const content = text.trim() || (photo ? "What’s in this photo?" : "");
+    if (locked.current || preparing || listening || !content || content.length > MAX_MESSAGE_LENGTH) return;
+    const history: DisplayMessage[] = [...messages, { id: crypto.randomUUID(), role: "user", content, ...(photo ? { image: photo } : {}) }];
+    setMessages(history); setPhoto(undefined); setExpanded(false); setDraft(""); setRetryMessages(null);
     void requestReply(history);
   }
   function reset() {
@@ -165,7 +215,7 @@ export function PerzoChat() {
       const saved = personal?.messages.length ? [{ ...personal, id: crypto.randomUUID(), name: personal.messages.find(message => message.role === "user")?.content.slice(0, 48) || "Chat" }] : [];
       return [...previous.filter(workspace => workspace.id !== "personal"), ...saved, { id: "personal", name: "Chat", messages: [], kind: "chat" }];
     });
-    setActiveId("personal"); setDraft(""); setError(null); setRetryMessages(null); setState("idle");
+    setActiveId("personal"); setDraft(""); setPhoto(undefined); setExpanded(false); setError(null); setRetryMessages(null); setState("idle");
     drawer.current?.close();
     if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) input.current?.focus();
   }
@@ -187,7 +237,7 @@ export function PerzoChat() {
   function selectWorkspace(id: string) {
     if (locked.current || listening) return;
     if (responseTimer.current) clearTimeout(responseTimer.current);
-    setActiveId(id); setDraft(""); setError(null); setRetryMessages(null); setState("idle"); drawer.current?.close();
+    setActiveId(id); setDraft(""); setPhoto(undefined); setExpanded(false); setError(null); setRetryMessages(null); setState("idle"); drawer.current?.close();
   }
   function createProject(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -227,7 +277,7 @@ export function PerzoChat() {
       <main className="main-panel">
         <header className="topbar">
           <button className="icon-button menu-button" onClick={() => drawer.current?.showModal()} aria-label="Open navigation"><Icon name="menu" /></button>
-          <div className="header-desktop-brand"><BrandMark /><span>Perzo</span></div>
+          <div className="header-desktop-brand"><BrandMark state={state === "generating" ? "responding" : state} /><span>Perzo</span></div>
           {(messages.length > 0 || activeId !== "personal") && <div className="header-center"><span className="header-title">{activeId === "personal" ? "New chat" : activeWorkspace.name}</span></div>}
           <button className="icon-button" onClick={reset} disabled={controlsBusy} aria-label="New chat" title="New chat"><Icon name="new-chat" size={19} /></button>
         </header>
@@ -238,8 +288,8 @@ export function PerzoChat() {
             ) : (
               <div className="message-list" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text">
                 <div className="assistant-intro"><BrandMark /><div><span>{displayName ? `Hey, ${displayName}.` : "Hey there."}</span><p>What’s on your mind?</p></div></div>
-                {messages.map(message => <article className={`message message-${message.role}`} key={message.id}>{message.role === "assistant" && <BrandMark className="message-avatar" />}<div className="message-content"><span className="message-author">{message.role === "assistant" ? "Perzo" : displayName || "You"}</span><p>{message.content}</p></div></article>)}
-                {busy && <div className="message message-assistant"><BrandMark className="message-avatar thinking-avatar" /><div className="message-content"><span className="message-author">Perzo</span><div className="typing-indicator" role="status" aria-label="Perzo is thinking"><i /><i /><i /></div></div></div>}
+                {messages.map((message, index) => <article className={`message message-${message.role}`} key={message.id}>{message.role === "assistant" && <BrandMark className="message-avatar" state={index === messages.length - 1 && (state === "responding" || state === "generating") ? "responding" : "idle"} />}<div className="message-content"><span className="message-author">{message.role === "assistant" ? "Perzo" : displayName || "You"}</span><p>{message.content}</p>{message.image && <img className="chat-photo" src={message.image} alt="Attached photo" />}</div></article>)}
+                {busy && state !== "generating" && <div className="message message-assistant"><BrandMark className="message-avatar" state={state} /><div className="message-content"><span className="message-author">Perzo</span><div className="typing-indicator" role="status" aria-label={state === "working" ? "Perzo is still working on your reply" : "Perzo is thinking"}><i /><i /><i /><span className="activity-caption">{state === "working" ? "Working on it…" : "Thinking…"}</span></div></div></div>}
               </div>
             )}
             {error && (
@@ -263,13 +313,22 @@ export function PerzoChat() {
           <div className="composer-wrap">
             {composerNotice && <p className="composer-notice" role="status">{composerNotice}</p>}
             {listening && <p className="composer-notice" role="status">Listening… tap stop when you’re done. Review your words before sending.</p>}
-            <form className="composer" onSubmit={event => { event.preventDefault(); send(); }}>
-              <button className="composer-add" type="button" onClick={() => drawer.current?.showModal()} disabled={controlsBusy} aria-label="More actions" title="New chat, projects and preferences"><Icon name="plus" size={22} /></button>
-              <div className="composer-field"><label className="sr-only" htmlFor="message">Message Perzo</label><textarea id="message" ref={input} value={draft} maxLength={MAX_MESSAGE_LENGTH} rows={1} placeholder="Type a message…" aria-describedby="composer-hint" autoCapitalize="sentences" spellCheck disabled={listening} onChange={event => { setDraft(event.target.value); if (error) setError(null); }} onKeyDown={event => {
+            <form className={`composer media-composer ${expanded || photo ? "is-expanded" : ""}`} onSubmit={event => { event.preventDefault(); send(); }}>
+              <input hidden ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp" onChange={event => { void attachPhoto(event.target.files?.[0]); event.target.value = ""; }} />
+              <input hidden ref={cameraInput} type="file" accept="image/*" capture="environment" onChange={event => { void attachPhoto(event.target.files?.[0]); event.target.value = ""; }} />
+              <div id="media-panel" className="media-panel" inert={!expanded && !photo}><div className="media-panel-inner">
+                {photo && <div className="photo-preview"><img src={photo} alt="Photo ready to send" /><button type="button" disabled={controlsBusy} aria-label="Remove photo" onClick={() => setPhoto(undefined)}><Icon name="close" size={16} /></button></div>}
+                <div className="media-actions"><button type="button" disabled={controlsBusy} onClick={() => photoInput.current?.click()}><Icon name="image" />Add photo</button><button type="button" disabled={controlsBusy} onClick={() => cameraInput.current?.click()}><Icon name="camera" />Camera</button></div>
+                <div className="feedback-options"><label><input type="checkbox" checked={sound} onChange={event => { setSound(event.target.checked); if (event.target.checked) unlockAudio(); }} />Reply sound</label><label><input type="checkbox" checked={haptics} onChange={event => setHaptics(event.target.checked)} />Error vibration</label></div>
+                <p>One photo at a time · Videos aren’t supported yet.</p>
+              </div></div>
+              <button className="composer-add" type="button" onClick={() => setExpanded(!expanded)} disabled={controlsBusy} aria-expanded={expanded} aria-controls="media-panel" aria-label={expanded ? "Collapse attachments" : "Add media"}><Icon name={expanded ? "close" : "attachment"} size={21} /></button>
+              <div className="composer-field"><label className="sr-only" htmlFor="message">Message Perzo</label><textarea id="message" ref={input} value={draft} maxLength={MAX_MESSAGE_LENGTH} rows={1} placeholder={preparing ? "Preparing photo…" : "Ask me anything…"} aria-describedby="composer-hint" autoCapitalize="sentences" spellCheck disabled={listening} onChange={event => { setDraft(event.target.value); if (error) setError(null); }} onKeyDown={event => {
                 if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); }
               }} /></div>
-              <VoiceInput disabled={busy} onTranscript={text => setDraft(previous => `${previous.trimEnd()}${previous.trim() ? " " : ""}${text}`.slice(0, MAX_MESSAGE_LENGTH))} onListeningChange={setListening} onError={setComposerNotice} />
-              <button className="send-button" type="submit" disabled={controlsBusy || !draft.trim()} aria-label={busy ? "Waiting for Perzo" : "Send message"}>{busy ? <span className="send-spinner" /> : <Icon name="send" size={21} />}</button>
+              <button className="composer-settings" type="button" aria-label="Media and feedback settings" aria-expanded={expanded} aria-controls="media-panel" onClick={() => setExpanded(!expanded)}><Icon name="settings" size={19} /></button>
+              <VoiceInput disabled={busy || preparing} onTranscript={text => setDraft(previous => `${previous.trimEnd()}${previous.trim() ? " " : ""}${text}`.slice(0, MAX_MESSAGE_LENGTH))} onListeningChange={setListening} onError={setComposerNotice} />
+              <button className="send-button" type="submit" disabled={controlsBusy || (!draft.trim() && !photo)} aria-label={busy ? "Waiting for Perzo" : "Send message"}>{busy ? <span className="send-spinner" /> : <Icon name="send" size={21} />}</button>
             </form>
             <div className="composer-footer" id="composer-hint"><span className="keyboard-hint">Enter to send · Shift + Enter for a new line</span><span>{draft.length > MAX_MESSAGE_LENGTH - 500 ? `${draft.length.toLocaleString()} / ${MAX_MESSAGE_LENGTH.toLocaleString()}` : "A little AI. A little company."}</span></div>
           </div>

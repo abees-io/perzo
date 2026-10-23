@@ -29,3 +29,12 @@ test("preserves text literally, including HTML, for safe React text rendering", 
   const content = '<script>alert("hello")</script>';
   assert.equal(validateMessages({ messages: [{ role: "user", content }] })[0].content, content);
 });
+
+test("accepts image data and rejects remote URLs, video and assistant attachments", () => {
+  const image = "data:image/png;base64,aGVsbG8=";
+  assert.equal(validateMessages({ messages: [{ role: "user", content: "Describe", image }] })[0].image, image);
+  for (const bad of ["https://example.com/photo.png", "data:video/mp4;base64,YQ==", "data:image/svg+xml;base64,YQ==", "data:image/png;base64," + "a".repeat(250001)]) {
+    assert.throws(() => validateMessages({ messages: [{ role: "user", content: "Describe", image: bad }] }), ChatValidationError);
+  }
+  assert.throws(() => validateMessages({ messages: [{ role: "assistant", content: "Hi", image }, { role: "user", content: "Hi" }] }), ChatValidationError);
+});

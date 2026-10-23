@@ -26,6 +26,7 @@ export interface NvidiaReplyOptions {
   baseUrl?: string;
   signal?: AbortSignal;
   fetcher?: typeof fetch;
+  onDelta?: (text: string) => void;
 }
 
 /**
@@ -40,6 +41,7 @@ export async function getNvidiaReply({
   baseUrl = process.env.NVIDIA_BASE_URL?.trim() || NVIDIA_BASE_URL,
   signal,
   fetcher,
+  onDelta,
 }: NvidiaReplyOptions): Promise<string> {
   const resolvedApiKey = (apiKey ?? process.env.NVIDIA_API_KEY)?.trim();
   if (!resolvedApiKey || resolvedApiKey.startsWith("replace_")) {
@@ -63,6 +65,10 @@ export async function getNvidiaReply({
   }
 
   for (const m of messages) {
+    if (m.role === "user" && m.image) {
+      chatMessages.push({ role: "user", content: [{ type: "text", text: m.content }, { type: "image_url", image_url: { url: m.image } }] });
+      continue;
+    }
     chatMessages.push({
       role: m.role as "user" | "assistant",
       content: m.content,
@@ -70,6 +76,22 @@ export async function getNvidiaReply({
   }
 
   try {
+    if (onDelta) {
+      const stream = await client.chat.completions.create({ model, messages: chatMessages, temperature: 0.2, top_p: 0.7, max_tokens: 1024, stream: true }, { signal });
+      let reply = "";
+      try {
+        for await (const chunk of stream) {
+          const text = chunk.choices[0]?.delta.content;
+          if (!text) continue;
+          const delta = text.slice(0, 4000 - reply.length);
+          reply += delta;
+          if (delta) onDelta(delta);
+          if (reply.length >= 4000) break;
+        }
+      } finally { stream.controller.abort(); }
+      if (!reply.trim()) throw new NvidiaAPIError("NVIDIA returned no answer text. Please try again.");
+      return reply.trim();
+    }
     const completion = await client.chat.completions.create(
       {
         model,
@@ -84,7 +106,7 @@ export async function getNvidiaReply({
     const message = completion.choices?.[0]?.message as
       | (OpenAI.Chat.Completions.ChatCompletionMessage & { reasoning_content?: string })
       | undefined;
-    const reply = (message?.content || message?.reasoning_content)?.trim();
+    const reply = message?.content?.trim();
     if (!reply) {
       throw new NvidiaAPIError("NVIDIA API returned an empty response. Please try again.", 502);
     }

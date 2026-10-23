@@ -46,6 +46,25 @@ export async function POST(request: Request) {
     }
 
     const messages = validateMessages(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+    if (request.headers.get("accept") === "application/x-ndjson") {
+      const abort = new AbortController();
+      const signal = AbortSignal.any([request.signal, abort.signal, AbortSignal.timeout(55_000)]);
+      const encoder = new TextEncoder();
+      let cancelled = false;
+      const stream = new ReadableStream({
+        async start(controller) {
+          const emit = (event: object) => { if (!cancelled) controller.enqueue(encoder.encode(JSON.stringify(event) + "\n")); };
+          try {
+            const reply = await getPerzoReply(messages, signal, text => emit({ delta: text }));
+            emit({ done: true, reply });
+          } catch (error) {
+            emit({ error: signal.aborted ? "The reply took too long. Please try again." : error instanceof NvidiaConfigurationError || error instanceof NvidiaAPIError ? error.message : "Perzo couldn’t finish that reply. Please try again." });
+          } finally { if (!cancelled) controller.close(); }
+        },
+        cancel() { cancelled = true; abort.abort(); },
+      });
+      return new Response(stream, { headers: { "Content-Type": "application/x-ndjson", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no" } });
+    }
     const reply = await getPerzoReply(messages, request.signal);
     return Response.json({ reply }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {

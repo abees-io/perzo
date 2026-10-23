@@ -2,7 +2,8 @@ export const MAX_MESSAGE_LENGTH = 4000;
 export const MAX_HISTORY_MESSAGES = 20;
 export const MAX_REQUEST_BYTES = 350_000;
 
-export type ChatMessage = { role: "user" | "assistant"; content: string };
+export const MAX_IMAGE_URL_LENGTH = 250_000;
+export type ChatMessage = { role: "user" | "assistant"; content: string; image?: string };
 
 export class ChatValidationError extends Error {}
 
@@ -22,6 +23,13 @@ export function validateMessages(body: unknown): ChatMessage[] {
     const content = message.content.trim();
     if (!content || content.length > MAX_MESSAGE_LENGTH) {
       throw new ChatValidationError(`Each message must contain 1–${MAX_MESSAGE_LENGTH} characters.`);
+    }
+    if ("image" in message && message.image !== undefined) {
+      if (message.role !== "user" || typeof message.image !== "string" || message.image.length > MAX_IMAGE_URL_LENGTH ||
+          !/^data:image\/(jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/.test(message.image)) {
+        throw new ChatValidationError("Attach a valid JPEG or PNG photo under 180 KB after compression.");
+      }
+      return { role: message.role, content, image: message.image };
     }
     return { role: message.role, content };
   });
