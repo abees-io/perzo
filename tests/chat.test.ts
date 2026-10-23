@@ -42,8 +42,14 @@ test("accepts image data and rejects remote URLs, video and assistant attachment
 test("extracts and sanitizes model selection from request body", () => {
   const { extractModel } = require("../src/lib/chat");
   assert.equal(extractModel({ messages: [{ role: "user", content: "hi" }], model: "meta/llama-3.2-11b-vision-instruct" }), "meta/llama-3.2-11b-vision-instruct");
-  assert.equal(extractModel({ model: "  nvidia/nemotron-3.5-super-vl-120b-a12b  " }), "nvidia/nemotron-3.5-super-vl-120b-a12b");
+  assert.equal(extractModel({ model: "  deepseek-ai/deepseek-v4.1-flash  " }), "deepseek-ai/deepseek-v4.1-flash");
   assert.throws(() => extractModel({ model: 123 }), ChatValidationError);
   assert.equal(extractModel({}), undefined);
   assert.equal(extractModel(null), undefined);
+});
+
+
+test("rejects removed models in chat requests", () => {
+  const { extractModel } = require("../src/lib/chat");
+  for (const model of ["nvidia/body-pose", "nvidia/nemotron-3.5-lightning-30b-a3b", "nvidia/nemotron-3.5-super-vl-120b-a12b"]) assert.throws(() => extractModel({ model }), ChatValidationError);
 });

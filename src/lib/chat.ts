@@ -43,7 +43,7 @@ export function validateMessages(body: unknown): ChatMessage[] {
 export function extractModel(body: unknown): string | undefined {
   if (body && typeof body === "object" && "model" in body) {
     const model = sanitizeModelId(body.model);
-    if (!model || getModel(model)?.kind !== "chat") throw new ChatValidationError("Choose a chat model from the model picker. Body Pose uses the video tool.");
+    if (!model || getModel(model)?.kind !== "chat") throw new ChatValidationError("Choose Llama 3.2 11B, Llama 3.2 90B or DeepSeek from the model picker.");
     return model;
   }
   return undefined;

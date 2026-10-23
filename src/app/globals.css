@@ -407,7 +407,6 @@ dialog { color: var(--ink); padding: 0; }dialog::backdrop { background: #0009; b
 .composer-model-row .model-badge-btn { min-height: 36px; max-width: 75%; padding: 6px 10px; color: #e6d9e9; font-size: 11px; }
 .composer-model-row .model-badge-btn > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composer-model-kind { color: #b6a8bc; font-size: 10px; white-space: nowrap; }
-.composer-model-surface.is-pose .composer-model-row { padding-bottom: 9px; }
 .model-dialog { margin: auto; padding: 20px; width: min(440px, calc(100vw - 28px)); max-height: min(720px, calc(100dvh - 32px)); border: 1px solid #8e6b9755; border-radius: 25px; background: #19141df5; color: #f0e6f3; box-shadow: 0 28px 100px #0009; overflow-y: auto; }
 .model-dialog-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .model-dialog h2 { font: 400 24px Georgia, serif; margin: 4px 0 9px; }
@@ -416,24 +415,6 @@ dialog { color: var(--ink); padding: 0; }dialog::backdrop { background: #0009; b
 .model-dialog .model-option-top { width: 100%; }
 .model-dialog .model-option-desc { padding-left: 0; }
 .model-access-note { margin: 16px 0 0; }
-.pose-panel { max-width: 560px; margin: 20px auto 30px; color: #d5c8d9; }
-.pose-panel h1 { font: 400 clamp(28px, 5vw, 38px)/1.2 Georgia, serif; margin: 18px 0 12px; letter-spacing: -.6px; }
-.pose-panel p { font-size: 12px; line-height: 1.8; }
-.pose-upload { display: flex; flex-direction: column; gap: 10px; padding: 16px; margin: 15px 0; border: 1px solid #ffffff1a; border-radius: 18px; background: #ffffff04; font-size: 13px; }
-.pose-upload input { max-width: 100%; font-size: 12px; }
-.pose-upload input::file-selector-button { padding: 9px 12px; margin-right: 10px; border: 1px solid #ffffff20; background: #45314e; color: #f3e6f7; border-radius: 9px; }
-.pose-upload small, .pose-privacy { color: #a795af; font-size: 11px; line-height: 1.7; }
-.pose-panel details { border: 1px solid #ffffff12; padding: 12px 15px; border-radius: 14px; font-size: 12px; }
-.pose-panel summary { cursor: pointer; min-height: 28px; align-content: center; }
-.pose-panel pre { overflow-x: auto; font-size: 11px; color: #f2c49e; }
-.pose-panel a { color: #e9b7eb; font-size: 12px; }
-.pose-analyze, .pose-cancel { min-height: 46px; width: 100%; border: 1px solid #ffffff25; border-radius: 15px; background: #e8d9ed; color: #26182e; font-size: 13px; margin-top: 10px; }
-.pose-cancel { background: transparent; color: #e4cee9; }
-.pose-result { border: 1px solid #ffffff1a; border-radius: 18px; margin-top: 24px; padding: 18px; }
-.pose-result h2 { font-size: 16px; }
-.pose-result svg { width: 100%; max-height: 300px; background: #08060a; border-radius: 12px; }
-.pose-result label { display: block; font-size: 12px; margin: 14px 0; }
-.pose-result input { display: block; width: 100%; accent-color: #c195d8; margin-top: 10px; }
 @media (max-width: 360px) { .composer-model-row { padding-left: 9px; padding-right: 9px; } .composer-model-kind { font-size: 9px; } .model-dialog { padding: 15px; } }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .composer-model-surface { background: #29232f; } }
 @media (prefers-reduced-transparency: reduce) { .composer-model-surface { background: #29232f; backdrop-filter: none; -webkit-backdrop-filter: none; } }

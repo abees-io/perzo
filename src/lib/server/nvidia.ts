@@ -77,7 +77,7 @@ export async function getNvidiaReply({
   }
 
   const resolvedModel = model?.trim() || process.env.NVIDIA_MODEL?.trim() || NVIDIA_DEFAULT_MODEL;
-  if (getModel(resolvedModel)?.kind === "pose") throw new NvidiaAPIError("Body Pose must be used through the video tool.", 400);
+  if (!getModel(resolvedModel)) throw new NvidiaConfigurationError("This model is no longer enabled. Choose Llama 3.2 11B, Llama 3.2 90B or DeepSeek, and update NVIDIA_MODEL if needed.");
   if (messages.some(message => message.image) && !getModel(resolvedModel)?.vision) throw new NvidiaAPIError("This model accepts text only. Choose a model marked Chat + photos, or start a new chat without photos.", 400);
 
   try {
