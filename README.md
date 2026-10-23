@@ -1,40 +1,38 @@
 # Perzo
 
-A personal AI companion built with Next.js, TypeScript, Tailwind CSS and the official OpenAI SDK. The mobile-first interface uses the supplied Perzo logo, a near-black background and orange, coral and purple accents, with idle, thinking and responding states.
+A personal AI companion built with Next.js, TypeScript, Tailwind CSS, and the NVIDIA NIM API. The mobile-first interface features a near-black background with orange, coral, and purple accents, with idle, thinking, and responding states.
 
-## Start locally
+Powered by `nvidia/nemotron-3.5-super-vl-120b-a12b` via NVIDIA's OpenAI-compatible API endpoint.
+
+## Setup
 
 Requires Node.js 20.9 or newer and npm.
 
-1. Run `npm install` in this folder.
-2. Copy `.env.example` to `.env.local` in the project root, next to `package.json`.
-3. Open `.env.local` privately and replace both placeholders:
+1. Clone the repo and run `npm install`.
+2. Copy `.env.example` to `.env.local`:
 
    ```env
-   OPENAI_API_KEY=your_real_api_key
-   OPENAI_MODEL=your_available_responses_model_id
+   NVIDIA_API_KEY=your_real_nvidia_api_key
+   NVIDIA_MODEL=nvidia/nemotron-3.5-super-vl-120b-a12b
+   NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
    ```
 
-   Create a key at https://platform.openai.com/api-keys and choose a Responses-compatible model available to your API project. API access requires the appropriate account access and billing. Do not paste the key into the chat interface or share it. `.env.local` is ignored by Git; never use a `NEXT_PUBLIC_` prefix for secrets.
+   Get a free API key at [build.nvidia.com](https://build.nvidia.com). Do not prefix it with `NEXT_PUBLIC_` — it must stay server-side only.
 
-4. Run `npm run dev` and open http://127.0.0.1:5000.
-5. Restart the development server after changing environment variables.
+3. Run `npm.cmd run dev` and open [http://127.0.0.1:5000](http://127.0.0.1:5000).
+4. Restart the dev server after changing `.env.local`.
 
 ## Try the chat
 
-- Send “Hi, my name is Alex.” Then ask “What is my name?” to check conversation context.
-- Press Enter to send, or Shift+Enter to insert a new line.
-- Watch Perzo think, then respond. Only one request can run at once.
-- Send HTML such as `<b>hello</b>`: it appears as plain text, never executable HTML.
-- Blank messages cannot be sent. Each message is limited to 4,000 characters.
-- Without valid API settings, sending a message displays a setup error. Correct the settings, restart, and use Try again; retry does not duplicate your message.
-- New conversation clears the chat. Reloading also clears it: history stays only in browser memory, and the last 20 messages are sent for context. Older messages are not included.
-- Projects creates a named space with its own chat. Switch between spaces in Recents; their messages remain separate. New session starts a fresh general chat and keeps the previous one in Recents. Chats and projects are session-only and clear on refresh.
-- The sidebar has a search control, Projects/Chats/Personalize links, a searchable Recents list, a profile button and a bottom New session action. Search matches titles and message text within the current browser session. The profile button opens the saved-name setting.
-- The opening screen keeps only the small brand mark and centered greeting. A minimal header opens the navigation drawer. The single rounded message bar contains a plus menu, text field, microphone and Send button. The conversation scrolls above it. The layout accounts for display cutouts, home indicators and the visible viewport when the keyboard opens; the sidebar is available on desktop after chatting.
-- The opening screen shows a small Perzo logo and a greeting based on your device's local time: morning 05:00–11:59, afternoon 12:00–16:59, evening 17:00–20:59, and late night 21:00–04:59. It refreshes every minute and when you return to the app.
-- Menu → Personalize Perzo lets you set or clear an optional name. The name is stored only in this browser's local storage, independent of chat history; it is not an authenticated account profile or automatically sent to the model.
-- The plus button opens chat/project actions. The microphone uses browser speech recognition when supported, only after you tap it and grant permission. Recognized words stay in the draft until you send. Some browsers process speech online. Unsupported browsers keep typed chat available; the mic is disabled. This is dictation, not a full spoken conversation mode. See https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition.
+- Send a message and watch Perzo think, then respond.
+- Press **Enter** to send, or **Shift+Enter** for a new line.
+- Only one request runs at a time. A loading indicator appears while waiting.
+- Errors show a dismissable banner with a **Try again** button.
+- Blank or oversized messages (over 4,000 characters) cannot be sent.
+- **New session** clears the chat. The last 20 messages are sent as context; history is in-browser only and clears on refresh.
+- **Projects** creates a named workspace with its own chat history.
+- **Personalize** lets you set a display name (saved in browser local storage).
+- The **microphone** button uses browser speech recognition when supported.
 
 ## Checks
 
@@ -46,19 +44,19 @@ npm run build
 
 ## Structure
 
-- `src/components/perzo-chat.tsx`: interface and in-memory conversation state.
-- `src/components/brand.tsx`: shared Perzo logo presentation.
-- `src/components/icon.tsx`: interface icons.
-- `public/perzo-logo.png`: supplied logo, preserved as the source asset.
-- `src/lib/chat.ts`: shared message types, limits and server input validation.
-- `src/app/api/chat/route.ts`: bounded JSON input, validation and safe error responses.
-- `src/lib/server/perzo.ts`: server-only OpenAI Responses call and Perzo personality.
-- `src/app/globals.css`: Tailwind import, responsive layout, brand palette and animations.
+- `src/components/perzo-chat.tsx` — chat interface and in-memory conversation state
+- `src/components/brand.tsx` — shared Perzo logo
+- `src/components/icon.tsx` — interface icons
+- `src/components/voice-input.tsx` — browser speech recognition
+- `src/lib/chat.ts` — shared message types, limits, and server input validation
+- `src/lib/server/nvidia.ts` — NVIDIA NIM API client (server-only)
+- `src/lib/server/perzo.ts` — Perzo personality and reply dispatcher
+- `src/app/api/chat/route.ts` — POST endpoint with validation and error handling
+- `src/app/globals.css` — layout, brand palette, and animations
+- `public/perzo-logo.png` — brand asset
 
-The chat frontend calls `/api/chat`. API credentials never enter the client bundle. Responses are rendered as React text, without raw HTML. Requests use `store: false`; this does not change the provider's other applicable data-retention policies. Optional browser dictation uses the browser's recognition service separately. No database, RAG, spoken AI responses, tools or external account integrations are included.
+## Security notes
 
-The app binds to localhost by default for personal development. Before public deployment, add authentication and server-side rate limits to protect your API usage.
-
-Future persistence belongs behind the chat endpoint; RAG can supply context before the model call, tools/MCP can extend the server adapter, and voice can connect to the existing text input/output flow.
-
-API reference: https://developers.openai.com/api/docs/quickstart
+- `NVIDIA_API_KEY` is read only in server-side code and never included in the client bundle.
+- Responses are rendered as plain React text — no raw HTML is ever injected.
+- The app binds to `127.0.0.1` by default. Before any public deployment, add authentication and server-side rate limiting.

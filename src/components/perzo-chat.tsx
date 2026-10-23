@@ -120,14 +120,23 @@ export function PerzoChat() {
     if (responseTimer.current) clearTimeout(responseTimer.current);
     setState("thinking"); setError(null);
     controller.current = new AbortController();
-    const timeout = setTimeout(() => controller.current?.abort(), 60_000);
+    const timeout = setTimeout(() => controller.current?.abort(), 240_000);
     try {
       const response = await fetch("/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: history.slice(-MAX_HISTORY_MESSAGES).map(({ role, content }) => ({ role, content })) }),
         signal: controller.current.signal,
       });
-      const data = await response.json();
+      let data: { reply?: string; error?: string } = {};
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error(
+          response.status >= 500
+            ? "The server encountered an error processing your request. Please try again."
+            : `Network error (${response.status}: ${response.statusText || "Request failed"}).`
+        );
+      }
       if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Something went wrong. Please try again.");
       if (typeof data.reply !== "string" || !data.reply.trim()) throw new Error("Perzo returned an empty reply. Please try again.");
       setMessages([...history, { id: crypto.randomUUID(), role: "assistant", content: data.reply }]);
@@ -233,7 +242,22 @@ export function PerzoChat() {
                 {busy && <div className="message message-assistant"><BrandMark className="message-avatar thinking-avatar" /><div className="message-content"><span className="message-author">Perzo</span><div className="typing-indicator" role="status" aria-label="Perzo is thinking"><i /><i /><i /></div></div></div>}
               </div>
             )}
-            {error && <div className="error-notice" role="alert"><p>{error}</p>{retryMessages && <button onClick={() => void requestReply(retryMessages)} disabled={controlsBusy}>Try again <Icon name="arrow" size={15} /></button>}</div>}
+            {error && (
+              <div className="error-notice" role="alert">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                  <p>{error}</p>
+                  <button
+                    type="button"
+                    onClick={() => setError(null)}
+                    aria-label="Dismiss error"
+                    style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", color: "#a59ba9", minHeight: "auto" }}
+                  >
+                    <Icon name="close" size={14} />
+                  </button>
+                </div>
+                {retryMessages && <button onClick={() => void requestReply(retryMessages)} disabled={controlsBusy}>Try again <Icon name="arrow" size={15} /></button>}
+              </div>
+            )}
             <div ref={bottom} />
           </div>
           <div className="composer-wrap">
@@ -241,7 +265,7 @@ export function PerzoChat() {
             {listening && <p className="composer-notice" role="status">Listening… tap stop when you’re done. Review your words before sending.</p>}
             <form className="composer" onSubmit={event => { event.preventDefault(); send(); }}>
               <button className="composer-add" type="button" onClick={() => drawer.current?.showModal()} disabled={controlsBusy} aria-label="More actions" title="New chat, projects and preferences"><Icon name="plus" size={22} /></button>
-              <div className="composer-field"><label className="sr-only" htmlFor="message">Message Perzo</label><textarea id="message" ref={input} value={draft} maxLength={MAX_MESSAGE_LENGTH} rows={1} placeholder="Type a message…" aria-describedby="composer-hint" autoCapitalize="sentences" spellCheck disabled={listening} onChange={event => setDraft(event.target.value)} onKeyDown={event => {
+              <div className="composer-field"><label className="sr-only" htmlFor="message">Message Perzo</label><textarea id="message" ref={input} value={draft} maxLength={MAX_MESSAGE_LENGTH} rows={1} placeholder="Type a message…" aria-describedby="composer-hint" autoCapitalize="sentences" spellCheck disabled={listening} onChange={event => { setDraft(event.target.value); if (error) setError(null); }} onKeyDown={event => {
                 if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); }
               }} /></div>
               <VoiceInput disabled={busy} onTranscript={text => setDraft(previous => `${previous.trimEnd()}${previous.trim() ? " " : ""}${text}`.slice(0, MAX_MESSAGE_LENGTH))} onListeningChange={setListening} onError={setComposerNotice} />
