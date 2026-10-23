@@ -38,3 +38,13 @@ export function validateMessages(body: unknown): ChatMessage[] {
   }
   return validated;
 }
+
+export function extractModel(body: unknown): string | undefined {
+  if (body && typeof body === "object" && "model" in body && typeof (body as { model?: unknown }).model === "string") {
+    const trimmed = (body as { model: string }).model.trim();
+    if (trimmed && /^[a-zA-Z0-9_\-\.\/]{1,120}$/.test(trimmed)) {
+      return trimmed;
+    }
+  }
+  return undefined;
+}

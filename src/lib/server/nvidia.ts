@@ -75,9 +75,11 @@ export async function getNvidiaReply({
     });
   }
 
+  const resolvedModel = model?.trim() || process.env.NVIDIA_MODEL?.trim() || NVIDIA_DEFAULT_MODEL;
+
   try {
     if (onDelta) {
-      const stream = await client.chat.completions.create({ model, messages: chatMessages, temperature: 0.2, top_p: 0.7, max_tokens: 1024, stream: true }, { signal });
+      const stream = await client.chat.completions.create({ model: resolvedModel, messages: chatMessages, temperature: 0.2, top_p: 0.7, max_tokens: 1024, stream: true }, { signal });
       let reply = "";
       try {
         for await (const chunk of stream) {
@@ -94,7 +96,7 @@ export async function getNvidiaReply({
     }
     const completion = await client.chat.completions.create(
       {
-        model,
+        model: resolvedModel,
         messages: chatMessages,
         temperature: 0.2,
         top_p: 0.7,
@@ -106,7 +108,7 @@ export async function getNvidiaReply({
     const message = completion.choices?.[0]?.message as
       | (OpenAI.Chat.Completions.ChatCompletionMessage & { reasoning_content?: string })
       | undefined;
-    const reply = message?.content?.trim();
+    const reply = (message?.content || message?.reasoning_content)?.trim();
     if (!reply) {
       throw new NvidiaAPIError("NVIDIA API returned an empty response. Please try again.", 502);
     }

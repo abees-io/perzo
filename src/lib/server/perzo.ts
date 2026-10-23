@@ -24,8 +24,9 @@ function limitReply(reply: string) {
 export async function getPerzoReply(
   messages: ChatMessage[],
   signal?: AbortSignal,
-  onDelta?: (text: string) => void
+  onDelta?: (text: string) => void,
+  model?: string
 ): Promise<string> {
-  const reply = await getNvidiaReply({ messages, instructions, signal, onDelta });
+  const reply = await getNvidiaReply({ messages, instructions, signal, onDelta, model });
   return limitReply(reply);
 }

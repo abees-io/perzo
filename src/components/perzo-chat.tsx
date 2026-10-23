@@ -8,6 +8,7 @@ import { VoiceInput } from "./voice-input";
 import { readReplyStream } from "@/lib/reply-stream";
 import { preparePhoto } from "@/lib/photo";
 import { getGreeting } from "@/lib/greeting";
+import { AVAILABLE_MODELS, DEFAULT_MODEL_ID } from "@/lib/models";
 
 type DisplayMessage = ChatMessage & { id: string };
 type AssistantState = "idle" | "thinking" | "working" | "generating" | "responding";
@@ -60,6 +61,30 @@ export function PerzoChat() {
   const [preparing, setPreparing] = useState(false);
   const [sound, setSound] = useState(true);
   const [haptics, setHaptics] = useState(true);
+  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL_ID);
+  const [customModelInput, setCustomModelInput] = useState("");
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const modelMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("perzo.selectedModel");
+      if (saved) setSelectedModel(saved);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (modelMenuRef.current && !modelMenuRef.current.contains(event.target as Node)) {
+        setModelMenuOpen(false);
+      }
+    }
+    if (modelMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [modelMenuOpen]);
+
   const photoInput = useRef<HTMLInputElement>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
   const audio = useRef<AudioContext | null>(null);
@@ -165,7 +190,10 @@ export function PerzoChat() {
     try {
       const response = await fetch("/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
-        body: JSON.stringify({ messages: history.slice(-MAX_HISTORY_MESSAGES).map(({ role, content, image }, index, recent) => ({ role, content, ...(image && index === recent.findLastIndex(message => message.image) ? { image } : {}) })) }),
+        body: JSON.stringify({
+          messages: history.slice(-MAX_HISTORY_MESSAGES).map(({ role, content, image }, index, recent) => ({ role, content, ...(image && index === recent.findLastIndex(message => message.image) ? { image } : {}) })),
+          model: selectedModel,
+        }),
         signal: controller.current.signal,
       });
       const replyId = crypto.randomUUID();
@@ -279,7 +307,87 @@ export function PerzoChat() {
           <button className="icon-button menu-button" onClick={() => drawer.current?.showModal()} aria-label="Open navigation"><Icon name="menu" /></button>
           <div className="header-desktop-brand"><BrandMark state={state === "generating" ? "responding" : state} /><span>Perzo</span></div>
           {(messages.length > 0 || activeId !== "personal") && <div className="header-center"><span className="header-title">{activeId === "personal" ? "New chat" : activeWorkspace.name}</span></div>}
-          <button className="icon-button" onClick={reset} disabled={controlsBusy} aria-label="New chat" title="New chat"><Icon name="new-chat" size={19} /></button>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div ref={modelMenuRef} className="model-selector-wrap">
+              <button
+                type="button"
+                className={`model-badge-btn ${modelMenuOpen ? "is-open" : ""}`}
+                onClick={() => setModelMenuOpen(!modelMenuOpen)}
+                aria-expanded={modelMenuOpen}
+                title="Switch NVIDIA AI Model"
+              >
+                <span>{AVAILABLE_MODELS.find(m => m.id === selectedModel)?.icon || "⚡"}</span>
+                <span>{AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name || selectedModel.split("/").pop()}</span>
+                <Icon name="chevron" size={14} />
+              </button>
+              {modelMenuOpen && (
+                <div className="model-dropdown-menu">
+                  <div className="model-dropdown-header">
+                    <span>NVIDIA NIM Models</span>
+                    <span className="model-subtag">One API Key</span>
+                  </div>
+                  <div className="model-list">
+                    {AVAILABLE_MODELS.map(model => (
+                      <button
+                        key={model.id}
+                        type="button"
+                        className={`model-option ${selectedModel === model.id ? "is-active" : ""}`}
+                        onClick={() => {
+                          setSelectedModel(model.id);
+                          try { localStorage.setItem("perzo.selectedModel", model.id); } catch {}
+                          setModelMenuOpen(false);
+                        }}
+                      >
+                        <div className="model-option-top">
+                          <span className="model-option-icon">{model.icon}</span>
+                          <span className="model-option-title">{model.name}</span>
+                          <span className="model-tag-pill">{model.tag}</span>
+                        </div>
+                        <p className="model-option-desc">{model.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="model-custom-box">
+                    <label htmlFor="custom-model-id">Or use any custom NVIDIA model:</label>
+                    <div className="model-custom-input-row">
+                      <input
+                        id="custom-model-id"
+                        value={customModelInput}
+                        onChange={e => setCustomModelInput(e.target.value)}
+                        placeholder="e.g. 01-ai/yi-large"
+                        onKeyDown={e => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            const val = customModelInput.trim();
+                            if (val) {
+                              setSelectedModel(val);
+                              try { localStorage.setItem("perzo.selectedModel", val); } catch {}
+                              setModelMenuOpen(false);
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="model-custom-apply"
+                        onClick={() => {
+                          const val = customModelInput.trim();
+                          if (val) {
+                            setSelectedModel(val);
+                            try { localStorage.setItem("perzo.selectedModel", val); } catch {}
+                            setModelMenuOpen(false);
+                          }
+                        }}
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            <button className="icon-button" onClick={reset} disabled={controlsBusy} aria-label="New chat" title="New chat"><Icon name="new-chat" size={19} /></button>
+          </div>
         </header>
         <section className="chat-column" aria-label="Chat with Perzo">
           <div className="conversation-area">
