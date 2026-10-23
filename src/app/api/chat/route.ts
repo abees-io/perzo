@@ -4,11 +4,24 @@ import { NvidiaAPIError, NvidiaConfigurationError } from "@/lib/server/nvidia";
 
 export const runtime = "nodejs";
 
+// Allow up to 60 s on Vercel Pro / 10 s on Hobby (raised where the plan permits).
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   const origin = request.headers.get("origin");
   const incomingHost = request.headers.get("host");
-  if (origin && incomingHost && origin !== `${new URL(request.url).protocol}//${incomingHost}`) {
-    return Response.json({ error: "Please send messages from the Perzo app." }, { status: 403 });
+
+  // Compare only the host portion — Vercel's internal URL may use http: even
+  // when the public request arrives over https:, so a full-URL comparison would
+  // produce false 403s in production.
+  if (origin && incomingHost) {
+    try {
+      if (new URL(origin).host !== incomingHost) {
+        return Response.json({ error: "Please send messages from the Perzo app." }, { status: 403 });
+      }
+    } catch {
+      return Response.json({ error: "Please send messages from the Perzo app." }, { status: 403 });
+    }
   }
 
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
