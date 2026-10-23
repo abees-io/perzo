@@ -294,7 +294,7 @@ export function PerzoChat() {
       <main className="main-panel">
         <header className="topbar">
           <button className="icon-button menu-button" onClick={() => drawer.current?.showModal()} aria-label="Open navigation"><Icon name="menu" /></button>
-          <div className="header-desktop-brand"><BrandMark state={state === "generating" ? "responding" : state} /><span>Perzo</span></div>
+          <div className="header-desktop-brand"><BrandMark /><span>Perzo</span></div>
           {(messages.length > 0 || activeId !== "personal") && <div className="header-center"><span className="header-title">{activeId === "personal" ? "New chat" : activeWorkspace.name}</span></div>}
           <button className="icon-button" onClick={reset} disabled={controlsBusy} aria-label="New chat" title="New chat"><Icon name="new-chat" size={19} /></button>
         </header>
@@ -304,9 +304,9 @@ export function PerzoChat() {
               <div className="minimal-welcome"><div className="welcome-center"><BrandMark className="welcome-brand" /><h1>{hour === null ? "What’s on your mind?" : getGreeting(hour, displayName)}</h1></div></div>
             ) : (
               <div className="message-list" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text">
-                <div className="assistant-intro"><BrandMark /><div><span>{displayName ? `Hey, ${displayName}.` : "Hey there."}</span><p>What’s on your mind?</p></div></div>
-                {messages.map((message, index) => <article className={`message message-${message.role}`} key={message.id}>{message.role === "assistant" && <BrandMark className="message-avatar" state={index === messages.length - 1 && (state === "responding" || state === "generating") ? "responding" : "idle"} />}<div className="message-content"><span className="message-author">{message.role === "assistant" ? "Perzo" : displayName || "You"}</span><p>{message.content}</p>{message.image && <img className="chat-photo" src={message.image} alt="Attached photo" />}</div></article>)}
-                {busy && state !== "generating" && <div className="message message-assistant"><BrandMark className="message-avatar" state={state} /><div className="message-content"><span className="message-author">Perzo</span><div className="typing-indicator" role="status" aria-label={state === "working" ? "Perzo is still working on your reply" : "Perzo is thinking"}><i /><i /><i /><span className="activity-caption">{state === "working" ? "Working on it…" : "Thinking…"}</span></div></div></div>}
+                <div className="assistant-intro"><div><span>{displayName ? `Hey, ${displayName}.` : "Hey there."}</span><p>What’s on your mind?</p></div></div>
+                {messages.map(message => <article className={`message message-${message.role}`} key={message.id}><div className="message-content"><span className="message-author">{message.role === "assistant" ? "Perzo" : displayName || "You"}</span><p>{message.content}</p>{message.image && <img className="chat-photo" src={message.image} alt="Attached photo" />}</div></article>)}
+                {busy && state !== "generating" && <div className="message message-assistant message-thinking"><BrandMark className="message-avatar" state={state} /><div className="message-content"><span className="message-author">Perzo</span><div className="typing-indicator" role="status" aria-label={state === "working" ? "Perzo is still working on your reply" : "Perzo is thinking"}><i /><i /><i /><span className="activity-caption">{state === "working" ? "Working on it…" : "Thinking…"}</span></div></div></div>}
               </div>
             )}
             {error && (

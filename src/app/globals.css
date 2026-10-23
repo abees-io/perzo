@@ -415,6 +415,28 @@ dialog { color: var(--ink); padding: 0; }dialog::backdrop { background: #0009; b
 .model-dialog .model-option-top { width: 100%; }
 .model-dialog .model-option-desc { padding-left: 0; }
 .model-access-note { margin: 16px 0 0; }
+/* Chat layout controls: adjust these values to move where the text starts. */
+.chat-column {
+  --message-edge-space: 24px;
+  --user-message-max-width: 82%;
+  --reply-max-width: 75ch;
+  --thinking-logo-size: 30px;
+  --thinking-logo-gap: 10px;
+  --composer-max-width: 920px;
+  width: 100%; max-width: none; padding: 0;
+}
+.conversation-area { padding-left: max(var(--message-edge-space), env(safe-area-inset-left)); padding-right: max(var(--message-edge-space), env(safe-area-inset-right)); }
+.message-list { width: 100%; padding-top: 14px; }
+.message-assistant { width: min(100%, var(--reply-max-width)); margin-left: 0; margin-right: auto; }
+.message-user { width: fit-content; max-width: var(--user-message-max-width); margin-left: auto; margin-right: 0; }
+.message-user .message-content { padding: 14px 18px; }
+.message-user .message-author { text-align: right; }
+.message-thinking { gap: var(--thinking-logo-gap); }
+.message-thinking .message-avatar { width: var(--thinking-logo-size); height: var(--thinking-logo-size); }
+.assistant-intro { margin-bottom: 28px; }
+.error-notice { margin-left: 0; max-width: var(--reply-max-width); }
+.composer-wrap { width: min(calc(100% - var(--message-edge-space) * 2), var(--composer-max-width)); margin-left: auto; margin-right: auto; }
+@media (max-width: 600px) { .chat-column { --message-edge-space: 14px; --user-message-max-width: 86%; padding: 0; } }
 @media (max-width: 360px) { .composer-model-row { padding-left: 9px; padding-right: 9px; } .composer-model-kind { font-size: 9px; } .model-dialog { padding: 15px; } }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .composer-model-surface { background: #29232f; } }
 @media (prefers-reduced-transparency: reduce) { .composer-model-surface { background: #29232f; backdrop-filter: none; -webkit-backdrop-filter: none; } }
