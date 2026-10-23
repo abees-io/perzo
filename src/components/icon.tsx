@@ -1,5 +1,6 @@
-type IconName = "attachment" | "settings" | "image" | "camera" | "menu" | "new-chat" | "send" | "close" | "chat" | "spark" | "arrow" | "info" | "folder" | "plus" | "mic" | "stop" | "search" | "chevron";
+type IconName = "screen" | "attachment" | "settings" | "image" | "camera" | "menu" | "new-chat" | "send" | "close" | "chat" | "spark" | "arrow" | "info" | "folder" | "plus" | "mic" | "stop" | "search" | "chevron";
 const paths: Record<IconName, React.ReactNode> = {
+  screen: <><rect x="2" y="3" width="20" height="14" rx="3" /><path d="M8 21h8m-4-4v4m0-14v6m-3-3 3-3 3 3" /></>,
 attachment: <path d="m9 14 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l9-9" />,
 settings: <><path d="M3 6h5m4 0h9M3 12h11m4 0h3M3 18h3m4 0h11" /><circle cx="10" cy="6" r="2" /><circle cx="16" cy="12" r="2" /><circle cx="8" cy="18" r="2" /></>,
 image: <><rect x="3" y="3" width="18" height="18" rx="4" /><circle cx="8" cy="8" r="1.5" /><path d="m3 17 5-5 4 4 4-6 5 7" /></>,

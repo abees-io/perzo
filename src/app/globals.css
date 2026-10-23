@@ -418,3 +418,18 @@ dialog { color: var(--ink); padding: 0; }dialog::backdrop { background: #0009; b
 @media (max-width: 360px) { .composer-model-row { padding-left: 9px; padding-right: 9px; } .composer-model-kind { font-size: 9px; } .model-dialog { padding: 15px; } }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .composer-model-surface { background: #29232f; } }
 @media (prefers-reduced-transparency: reduce) { .composer-model-surface { background: #29232f; backdrop-filter: none; -webkit-backdrop-filter: none; } }
+.screen-share { padding: 0 13px; }
+.screen-share-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 38px; }
+.screen-share-actions button, .screen-voice-controls button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid #ffffff20; border-radius: 18px; background: #ffffff06; color: #ddcfe3; font-size: 11px; min-height: 34px; padding: 6px 11px; }
+.screen-share-actions > span { color: #c9b9d1; font-size: 10px; }
+.screen-share-actions .screen-unsupported { color: #9f8ea8; font-size: 10px; }
+.screen-live { display: inline-flex; align-items: center; gap: 6px; flex: 1; }
+.screen-live i { width: 6px; height: 6px; border-radius: 50%; background: #f4b29c; box-shadow: 0 0 9px #f4b29c55; }
+.screen-share.is-sharing { padding-top: 7px; }
+.screen-preview { display: flex; gap: 10px; align-items: center; margin: 9px 0 2px; }
+.screen-preview video { width: 100px; max-height: 75px; background: #0b080d; border: 1px solid #ffffff20; border-radius: 9px; object-fit: contain; cursor: pointer; }
+.screen-preview p { font-size: 10px; line-height: 1.6; color: #b6a4bd; margin: 0; }
+.screen-voice-controls { display: flex; gap: 10px; align-items: center; padding: 5px 13px; font-size: 10px; color: #cfbdd6; }
+.screen-voice-controls label { display: flex; gap: 6px; align-items: center; min-height: 32px; }
+.screen-voice-controls input { accent-color: #d8b6df; }
+@media (max-width: 360px) { .screen-share { padding-left: 9px; padding-right: 9px; } .screen-preview video { width: 76px; } }

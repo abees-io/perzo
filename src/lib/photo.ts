@@ -1,5 +1,13 @@
 import { MAX_IMAGE_URL_LENGTH } from "./chat";
 
+export function compressCanvas(canvas: HTMLCanvasElement): string {
+  for (const quality of [.8, .65, .5, .35, .2]) {
+    const image = canvas.toDataURL("image/jpeg", quality);
+    if (image.length <= MAX_IMAGE_URL_LENGTH) return image;
+  }
+  throw new Error("This image is too detailed. Try a smaller window or photo crop.");
+}
+
 export async function preparePhoto(file: File): Promise<string> {
   if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error("Choose a JPEG, PNG or WebP photo. Videos aren’t supported yet.");
   if (file.size > 10_000_000) throw new Error("Choose a photo smaller than 10 MB.");
@@ -14,10 +22,6 @@ export async function preparePhoto(file: File): Promise<string> {
     context.fillStyle = "#fff";
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    for (const quality of [.8, .65, .5, .35, .2]) {
-      const image = canvas.toDataURL("image/jpeg", quality);
-      if (image.length <= MAX_IMAGE_URL_LENGTH) return image;
-    }
-    throw new Error("This photo is too detailed. Try a smaller crop.");
+    return compressCanvas(canvas);
   } finally { bitmap.close(); }
 }
