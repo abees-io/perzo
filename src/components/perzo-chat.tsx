@@ -10,10 +10,8 @@ import { preparePhoto } from "@/lib/photo";
 import { getGreeting } from "@/lib/greeting";
 import { DEFAULT_MODEL_ID, getModel, sanitizeModelId } from "@/lib/models";
 import { ModelPicker } from "./model-picker";
-import { ScreenShare, type ScreenShareHandle } from "./screen-share";
-import { useSpokenReplies } from "./use-spoken-replies";
 
-type DisplayMessage = ChatMessage & { id: string; screenCapture?: boolean };
+type DisplayMessage = ChatMessage & { id: string };
 type AssistantState = "idle" | "thinking" | "working" | "generating" | "responding";
 type Workspace = { id: string; name: string; messages: DisplayMessage[]; kind: "chat" | "project" };
 
@@ -59,15 +57,9 @@ export function PerzoChat() {
   const [profileNotice, setProfileNotice] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const [composerNotice, setComposerNotice] = useState<string | null>(null);
-  const screenShare = useRef<ScreenShareHandle>(null);
-  const sharing = useRef(false);
-  const [screenActive, setScreenActive] = useState(false), [screenPending, setScreenPending] = useState(false);
-  const spoken = useSpokenReplies(setComposerNotice);
   const [expanded, setExpanded] = useState(false);
   const [photo, setPhoto] = useState<string | undefined>();
   const [preparing, setPreparing] = useState(false);
-  const [sound, setSound] = useState(true);
-  const [haptics, setHaptics] = useState(true);
   const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL_ID);
   const currentModel = getModel(selectedModel)!;
   useEffect(() => {
@@ -75,8 +67,6 @@ export function PerzoChat() {
   }, []);
   function changeModel(id: string) {
     if (photo && !getModel(id)?.vision) { setComposerNotice("Remove the attached photo before choosing a text-only model."); return; }
-    if (!getModel(id)?.vision) screenShare.current?.stop();
-    spoken.stop();
     setSelectedModel(id); setError(null); setComposerNotice(null);
     try { localStorage.setItem("perzo.selectedModel", id); } catch {}
   }
@@ -88,7 +78,7 @@ export function PerzoChat() {
     try { if (!audio.current) audio.current = new AudioContext(); void audio.current.resume().catch(() => {}); } catch { /* Optional audio isn't available everywhere. */ }
   }
   function chime() {
-    if (!sound || !audio.current || audio.current.state !== "running") return;
+    if (!audio.current || audio.current.state !== "running") return;
     const context = audio.current;
     const oscillator = context.createOscillator(), gain = context.createGain();
     oscillator.connect(gain); gain.connect(context.destination);
@@ -101,7 +91,6 @@ export function PerzoChat() {
   }
   async function attachPhoto(file?: File) {
     if (!file) return;
-    if (sharing.current) { setComposerNotice("Stop screen sharing before attaching a photo."); return; }
     if (!currentModel.vision) { setComposerNotice("Choose a model marked Chat + photos to attach an image."); return; }
     setPreparing(true); setComposerNotice(null);
     try { setPhoto(await preparePhoto(file)); setExpanded(true); }
@@ -122,8 +111,8 @@ export function PerzoChat() {
   const responseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const controller = useRef<AbortController | null>(null);
   const busy = state === "thinking" || state === "working" || state === "generating";
-  const controlsBusy = busy || listening || preparing || screenPending;
-  useEffect(() => { if ((error || composerNotice) && haptics) navigator.vibrate?.([35, 45, 35]); }, [error, composerNotice, haptics]);
+  const controlsBusy = busy || listening || preparing;
+  useEffect(() => { if (error || composerNotice) navigator.vibrate?.([35, 45, 35]); }, [error, composerNotice]);
   useEffect(() => () => { void audio.current?.close().catch(() => {}); }, []);
 
   useEffect(() => {
@@ -178,8 +167,7 @@ export function PerzoChat() {
   }, []);
 
   async function requestReply(history: DisplayMessage[]) {
-    if (locked.current || preparing || listening || screenPending) return;
-    spoken.stop();
+    if (locked.current || preparing || listening) return;
     unlockAudio();
     locked.current = true;
     if (responseTimer.current) clearTimeout(responseTimer.current);
@@ -217,7 +205,6 @@ export function PerzoChat() {
       if (typeof data.reply !== "string" || !data.reply.trim()) throw new Error("Perzo returned an empty reply. Please try again.");
       setMessages([...history, { id: replyId, role: "assistant", content: data.reply }]);
       setRetryMessages(null); setState("responding"); chime();
-      if (sharing.current) spoken.say(data.reply);
       responseTimer.current = setTimeout(() => setState("idle"), 2200);
     } catch (failure) {
       setMessages(history);
@@ -229,20 +216,16 @@ export function PerzoChat() {
     }
   }
   function send(text = draft) {
-    if (locked.current || preparing || listening || screenPending) return;
-    const content = text.trim() || (sharing.current ? "What do you see on my screen?" : photo ? "What’s in this photo?" : "");
+    if (locked.current || preparing || listening) return;
+    const content = text.trim() || (photo ? "What’s in this photo?" : "");
     if (!content || content.length > MAX_MESSAGE_LENGTH) return;
-    let image = photo;
-    try { if (sharing.current) { image = screenShare.current?.capture(); if (!image) throw new Error("Choose a screen again before sending."); } }
-    catch (failure) { setComposerNotice(failure instanceof Error ? failure.message : "Couldn’t capture your screen."); return; }
-    const history: DisplayMessage[] = [...messages, { id: crypto.randomUUID(), role: "user", content, ...(image ? { image } : {}), ...(sharing.current ? { screenCapture: true } : {}) }];
+    const history: DisplayMessage[] = [...messages, { id: crypto.randomUUID(), role: "user", content, ...(photo ? { image: photo } : {}) }];
     setMessages(history); setPhoto(undefined); setExpanded(false); setDraft(""); setRetryMessages(null); setComposerNotice(null);
     void requestReply(history);
   }
 
   function reset() {
-    if (locked.current || listening || screenPending) return;
-    screenShare.current?.stop(); spoken.stop();
+    if (locked.current || listening) return;
     if (responseTimer.current) clearTimeout(responseTimer.current);
     setWorkspaces(previous => {
       const personal = previous.find(workspace => workspace.id === "personal");
@@ -265,12 +248,11 @@ export function PerzoChat() {
     } catch { setProfileNotice("Your name is set for this session. Your browser couldn’t save it for next time."); }
   }
   function openProject() {
-    if (locked.current || listening || screenPending) return;
+    if (locked.current || listening) return;
     drawer.current?.close(); setProjectName(""); setProjectError(null); projectDialog.current?.showModal();
   }
   function selectWorkspace(id: string) {
-    if (locked.current || listening || screenPending) return;
-    screenShare.current?.stop(); spoken.stop();
+    if (locked.current || listening) return;
     if (responseTimer.current) clearTimeout(responseTimer.current);
     setActiveId(id); setDraft(""); setPhoto(undefined); setExpanded(false); setError(null); setRetryMessages(null); setState("idle"); drawer.current?.close();
   }
@@ -323,7 +305,7 @@ export function PerzoChat() {
             ) : (
               <div className="message-list" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text">
                 <div className="assistant-intro"><BrandMark /><div><span>{displayName ? `Hey, ${displayName}.` : "Hey there."}</span><p>What’s on your mind?</p></div></div>
-                {messages.map((message, index) => <article className={`message message-${message.role}`} key={message.id}>{message.role === "assistant" && <BrandMark className="message-avatar" state={index === messages.length - 1 && (state === "responding" || state === "generating") ? "responding" : "idle"} />}<div className="message-content"><span className="message-author">{message.role === "assistant" ? "Perzo" : displayName || "You"}</span><p>{message.content}</p>{message.image && <img className="chat-photo" src={message.image} alt={message.screenCapture ? "Screen snapshot sent with this question" : "Attached photo"} />}</div></article>)}
+                {messages.map((message, index) => <article className={`message message-${message.role}`} key={message.id}>{message.role === "assistant" && <BrandMark className="message-avatar" state={index === messages.length - 1 && (state === "responding" || state === "generating") ? "responding" : "idle"} />}<div className="message-content"><span className="message-author">{message.role === "assistant" ? "Perzo" : displayName || "You"}</span><p>{message.content}</p>{message.image && <img className="chat-photo" src={message.image} alt="Attached photo" />}</div></article>)}
                 {busy && state !== "generating" && <div className="message message-assistant"><BrandMark className="message-avatar" state={state} /><div className="message-content"><span className="message-author">Perzo</span><div className="typing-indicator" role="status" aria-label={state === "working" ? "Perzo is still working on your reply" : "Perzo is thinking"}><i /><i /><i /><span className="activity-caption">{state === "working" ? "Working on it…" : "Thinking…"}</span></div></div></div>}
               </div>
             )}
@@ -347,8 +329,6 @@ export function PerzoChat() {
           </div>
           <div className="composer-wrap">
             <div className="composer-model-surface"><ModelPicker value={selectedModel} disabled={controlsBusy} onChange={changeModel} />
-            <ScreenShare ref={screenShare} disabled={controlsBusy} vision={currentModel.vision} hasPhoto={Boolean(photo)} onActiveChange={active => { sharing.current = active; setScreenActive(active); if (!active) spoken.stop(); }} onPendingChange={setScreenPending} onError={setComposerNotice} />
-            {screenActive && <div className="screen-voice-controls"><label><input type="checkbox" checked={spoken.enabled} disabled={!spoken.supported} onChange={event => spoken.toggle(event.target.checked)} />Speak replies</label>{spoken.speaking && <button type="button" onClick={spoken.stop}>Stop speaking</button>}{!spoken.supported && <span>Spoken playback unavailable</span>}</div>}
             {composerNotice && <p className="composer-notice" role="status">{composerNotice}</p>}
             {listening && <p className="composer-notice" role="status">Listening… tap stop when you’re done. Review your words before sending.</p>}
             <form className={`composer media-composer ${expanded || photo ? "is-expanded" : ""}`} onSubmit={event => { event.preventDefault(); send(); }}>
@@ -356,17 +336,15 @@ export function PerzoChat() {
               <input hidden ref={cameraInput} type="file" accept="image/*" capture="environment" onChange={event => { void attachPhoto(event.target.files?.[0]); event.target.value = ""; }} />
               <div id="media-panel" className="media-panel" inert={!expanded && !photo}><div className="media-panel-inner">
                 {photo && <div className="photo-preview"><img src={photo} alt="Photo ready to send" /><button type="button" disabled={controlsBusy} aria-label="Remove photo" onClick={() => setPhoto(undefined)}><Icon name="close" size={16} /></button></div>}
-                <div className="media-actions"><button type="button" disabled={controlsBusy || screenActive || !currentModel.vision} onClick={() => photoInput.current?.click()}><Icon name="image" />Add photo</button><button type="button" disabled={controlsBusy || !currentModel.vision} onClick={() => cameraInput.current?.click()}><Icon name="camera" />Camera</button></div>
-                <div className="feedback-options"><label><input type="checkbox" checked={sound} onChange={event => { setSound(event.target.checked); if (event.target.checked) unlockAudio(); }} />Reply sound</label><label><input type="checkbox" checked={haptics} onChange={event => setHaptics(event.target.checked)} />Error vibration</label></div>
+                <div className="media-actions"><button type="button" disabled={controlsBusy || !currentModel.vision} onClick={() => photoInput.current?.click()}><Icon name="image" />Add photo</button><button type="button" disabled={controlsBusy || !currentModel.vision} onClick={() => cameraInput.current?.click()}><Icon name="camera" />Camera</button></div>
                 <p>{currentModel.vision ? "One photo at a time · Videos aren’t supported." : "Text model · Switch to Chat + photos for image uploads."}</p>
               </div></div>
               <button className="composer-add" type="button" onClick={() => setExpanded(!expanded)} disabled={controlsBusy} aria-expanded={expanded} aria-controls="media-panel" aria-label={expanded ? "Collapse attachments" : "Add media"}><Icon name={expanded ? "close" : "attachment"} size={21} /></button>
-              <div className="composer-field"><label className="sr-only" htmlFor="message">Message Perzo</label><textarea id="message" ref={input} value={draft} maxLength={MAX_MESSAGE_LENGTH} rows={1} placeholder={preparing ? "Preparing photo…" : screenActive ? "Ask about your screen…" : "Ask me anything…"} aria-describedby="composer-hint" autoCapitalize="sentences" spellCheck disabled={listening} onChange={event => { setDraft(event.target.value); if (error) setError(null); }} onKeyDown={event => {
+              <div className="composer-field"><label className="sr-only" htmlFor="message">Message Perzo</label><textarea id="message" ref={input} value={draft} maxLength={MAX_MESSAGE_LENGTH} rows={1} placeholder={preparing ? "Preparing photo…" : "Ask me anything…"} aria-describedby="composer-hint" autoCapitalize="sentences" spellCheck disabled={listening} onChange={event => { setDraft(event.target.value); if (error) setError(null); }} onKeyDown={event => {
                 if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); }
               }} /></div>
-              <button className="composer-settings" type="button" aria-label="Media and feedback settings" aria-expanded={expanded} aria-controls="media-panel" onClick={() => setExpanded(!expanded)}><Icon name="settings" size={19} /></button>
-              <VoiceInput disabled={busy || preparing || screenPending} onTranscript={text => setDraft(previous => `${previous.trimEnd()}${previous.trim() ? " " : ""}${text}`.slice(0, MAX_MESSAGE_LENGTH))} onListeningChange={active => { if (active) spoken.stop(); setListening(active); }} onError={setComposerNotice} />
-              <button className="send-button" type="submit" disabled={controlsBusy || (!draft.trim() && !photo && !screenActive)} aria-label={busy ? "Waiting for Perzo" : "Send message"}>{busy ? <span className="send-spinner" /> : <Icon name="send" size={21} />}</button>
+              <VoiceInput disabled={busy || preparing} onTranscript={text => setDraft(previous => `${previous.trimEnd()}${previous.trim() ? " " : ""}${text}`.slice(0, MAX_MESSAGE_LENGTH))} onListeningChange={setListening} onError={setComposerNotice} />
+              <button className="send-button" type="submit" disabled={controlsBusy || (!draft.trim() && !photo)} aria-label={busy ? "Waiting for Perzo" : "Send message"}>{busy ? <span className="send-spinner" /> : <Icon name="send" size={21} />}</button>
             </form>
             </div>
             <div className="composer-footer" id="composer-hint"><span className="keyboard-hint">Enter to send · Shift + Enter for a new line</span><span>{draft.length > MAX_MESSAGE_LENGTH - 500 ? `${draft.length.toLocaleString()} / ${MAX_MESSAGE_LENGTH.toLocaleString()}` : "A little AI. A little company."}</span></div>

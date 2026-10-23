@@ -65,12 +65,6 @@ npm run build
 
 Choose Llama 3.2 11B, Llama 3.2 90B, or DeepSeek Flash from the model picker attached to the message bar. Your selection is remembered in this browser. Both Llama models accept photos; DeepSeek receives text only, with earlier photo attachments omitted. Availability and quotas depend on your NVIDIA account. Video analysis is not included.
 
-## Discuss a shared screen
+## Reply feedback
 
-Press **Share screen** beside the composer and choose a screen, window or tab in the browser's picker. Use Llama 3.2 11B or 90B; DeepSeek is text-only. A small local live preview and **Stop sharing** control remain visible while active.
-
-Each time you send a question, Perzo compresses one current screen frame and sends it to NVIDIA with your question. It does not continuously broadcast video to the model and does not capture system audio. With no question entered, Send asks "What do you see on my screen?". Screen images appear in conversation history, which is held in browser memory.
-
-Optional **Speak replies** uses browser text-to-speech after an answer finishes. **Stop speaking**, starting microphone dictation, stopping sharing, switching models, or changing chats stops playback. The microphone still requires reviewing and sending your dictated question; this is not an always-listening voice agent.
-
-Screen capture requires HTTPS (or localhost) and browser support. Unsupported browsers can use photo/screenshot upload instead. Permission is requested for each new share. Stop sharing from Perzo or the browser's own sharing indicator. New sessions, workspace changes, and leaving the page release the capture tracks. The API key remains server-side; no additional environment variables are required.
+A short chime plays when an answer finishes. Errors trigger a brief vibration on supported devices. Both are enabled automatically with no settings switches. Browser audio rules, device volume, and vibration support still apply. Screen sharing is not included.
