@@ -73,7 +73,7 @@ test("throws NvidiaConfigurationError when API key is missing or is placeholder"
         ...baseRequest,
         apiKey: emptyKey,
       }),
-      (err: unknown) => err instanceof NvidiaConfigurationError
+      (err: unknown) => err instanceof NvidiaConfigurationError,
     );
   }
 });
@@ -91,7 +91,7 @@ test("handles NVIDIA upstream HTTP error responses with clear status", async () 
       ...baseRequest,
       fetcher: unauthorizedFetcher,
     }),
-    (err: unknown) => err instanceof NvidiaAPIError && (err.status === 401 || err.status === 502)
+    (err: unknown) => err instanceof NvidiaAPIError && (err.status === 401 || err.status === 502),
   );
 
   const rateLimitFetcher: typeof fetch = async () => {
@@ -106,7 +106,7 @@ test("handles NVIDIA upstream HTTP error responses with clear status", async () 
       ...baseRequest,
       fetcher: rateLimitFetcher,
     }),
-    (err: unknown) => err instanceof NvidiaAPIError && err.status === 429
+    (err: unknown) => err instanceof NvidiaAPIError && err.status === 429,
   );
 });
 
@@ -122,32 +122,83 @@ test("rejects empty or malformed model responses", async () => {
       ...baseRequest,
       fetcher: emptyFetcher,
     }),
-    (err: unknown) => err instanceof NvidiaAPIError
+    (err: unknown) => err instanceof NvidiaAPIError,
   );
 });
 
 test("sends photo as multimodal content rather than text", async () => {
   const image = "data:image/png;base64,aGVsbG8=";
-  await getNvidiaReply({ ...baseRequest, messages: [{ role: "user", content: "Describe", image }], fetcher: async (_url, options) => {
-    const body = JSON.parse(String(options?.body));
-    assert.deepEqual(body.messages[1], { role: "user", content: [{ type: "text", text: "Describe" }, { type: "image_url", image_url: { url: image } }] });
-    return Response.json({ choices: [{ message: { content: "A photo." } }] });
-  } });
+  await getNvidiaReply({
+    ...baseRequest,
+    messages: [{ role: "user", content: "Describe", image }],
+    fetcher: async (_url, options) => {
+      const body = JSON.parse(String(options?.body));
+      assert.deepEqual(body.messages[1], {
+        role: "user",
+        content: [
+          { type: "text", text: "Describe" },
+          { type: "image_url", image_url: { url: image } },
+        ],
+      });
+      return Response.json({ choices: [{ message: { content: "A photo." } }] });
+    },
+  });
 });
 
 test("streams answer text and excludes reasoning deltas", async () => {
   const updates: string[] = [];
-  const reply = await getNvidiaReply({ ...baseRequest, onDelta: value => updates.push(value), fetcher: async (_url, options) => {
-    assert.equal(JSON.parse(String(options?.body)).stream, true);
-    const chunks = [{ reasoning_content: "private reasoning" }, { content: "Hey" }, { content: " there!" }];
-    return new Response(chunks.map(delta => "data: " + JSON.stringify({ choices: [{ delta }] }) + "\n\n").join("") + "data: [DONE]\n\n", { headers: { "Content-Type": "text/event-stream" } });
-  } });
+  const reply = await getNvidiaReply({
+    ...baseRequest,
+    onDelta: (value) => updates.push(value),
+    fetcher: async (_url, options) => {
+      assert.equal(JSON.parse(String(options?.body)).stream, true);
+      const chunks = [
+        { reasoning_content: "private reasoning" },
+        { content: "Hey" },
+        { content: " there!" },
+      ];
+      return new Response(
+        chunks
+          .map((delta) => "data: " + JSON.stringify({ choices: [{ delta }] }) + "\n\n")
+          .join("") + "data: [DONE]\n\n",
+        { headers: { "Content-Type": "text/event-stream" } },
+      );
+    },
+  });
   assert.deepEqual(updates, ["Hey", " there!"]);
   assert.equal(reply, "Hey there!");
 });
 
 test("text-only models reject photo requests before calling NVIDIA", async () => {
   let called = false;
-  await assert.rejects(getNvidiaReply({ ...baseRequest, model: "deepseek-ai/deepseek-v4.1-flash", messages: [{ role: "user", content: "Describe", image: "data:image/png;base64,YQ==" }], fetcher: async () => { called = true; return Response.json({}); } }), /accepts text only/);
+  await assert.rejects(
+    getNvidiaReply({
+      ...baseRequest,
+      model: "deepseek-ai/deepseek-v4.1-flash",
+      messages: [{ role: "user", content: "Describe", image: "data:image/png;base64,YQ==" }],
+      fetcher: async () => {
+        called = true;
+        return Response.json({});
+      },
+    }),
+    /accepts text only/,
+  );
   assert.equal(called, false);
+});
+
+test("provider failures never expose raw upstream messages", async () => {
+  await assert.rejects(
+    getNvidiaReply({
+      ...baseRequest,
+      fetcher: async () =>
+        new Response(JSON.stringify({ error: { message: "private-provider-detail" } }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }),
+    }),
+    (error) =>
+      error instanceof NvidiaAPIError &&
+      !error.message.includes("private-provider-detail") &&
+      error.message.includes("temporarily unavailable"),
+  );
 });

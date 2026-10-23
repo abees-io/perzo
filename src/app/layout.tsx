@@ -3,7 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Perzo — Your little everyday companion",
-  description: "A little presence. Endless possibility. Think, create, and chat with Perzo, your personal AI companion.",
+  description:
+    "A little presence. Endless possibility. Think, create, and chat with Perzo, your personal AI companion.",
   icons: { icon: "/perzo-logo.png", apple: "/perzo-logo.png" },
 };
 
@@ -17,5 +18,9 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}</body></html>;
+  return (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  );
 }

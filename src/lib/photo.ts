@@ -1,7 +1,7 @@
 import { MAX_IMAGE_URL_LENGTH } from "./chat";
 
 export function compressCanvas(canvas: HTMLCanvasElement): string {
-  for (const quality of [.8, .65, .5, .35, .2]) {
+  for (const quality of [0.8, 0.65, 0.5, 0.35, 0.2]) {
     const image = canvas.toDataURL("image/jpeg", quality);
     if (image.length <= MAX_IMAGE_URL_LENGTH) return image;
   }
@@ -9,7 +9,8 @@ export function compressCanvas(canvas: HTMLCanvasElement): string {
 }
 
 export async function preparePhoto(file: File): Promise<string> {
-  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error("Choose a JPEG, PNG or WebP photo. Videos aren’t supported yet.");
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type))
+    throw new Error("Choose a JPEG, PNG or WebP photo. Videos aren’t supported yet.");
   if (file.size > 10_000_000) throw new Error("Choose a photo smaller than 10 MB.");
   const bitmap = await createImageBitmap(file);
   try {
@@ -23,5 +24,7 @@ export async function preparePhoto(file: File): Promise<string> {
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
     return compressCanvas(canvas);
-  } finally { bitmap.close(); }
+  } finally {
+    bitmap.close();
+  }
 }

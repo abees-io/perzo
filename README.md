@@ -1,6 +1,6 @@
 # Perzo
 
-A personal AI companion built with Next.js, TypeScript, Tailwind CSS, and the NVIDIA NIM API. The mobile-first interface features a near-black background with orange, coral, and purple accents, with idle, thinking, and responding states.
+A personal AI companion built with Next.js, TypeScript, Tailwind CSS, and the NVIDIA NIM API. The mobile-first interface uses a dark glass composer, orange/coral/purple branding, and a logo that animates only while waiting for a reply.
 
 Chat uses NVIDIA’s OpenAI-compatible API, with a selectable model in the composer. The default is `meta/llama-3.2-11b-vision-instruct`.
 
@@ -29,7 +29,7 @@ Requires Node.js 20.9 or newer and npm.
 - Only one request runs at a time. A loading indicator appears while waiting.
 - Errors show a dismissable banner with a **Try again** button.
 - Blank or oversized messages (over 4,000 characters) cannot be sent.
-- **New session** clears the chat. The last 20 messages are sent as context; history is in-browser only and clears on refresh.
+- **New session** opens a fresh chat and keeps previous conversations in Recents for the current browser session. Up to 20 recent messages are sent as context; older messages are trimmed when needed to fit the request size limit. Chats clear on refresh.
 - **Projects** creates a named workspace with its own chat history.
 - **Personalize** lets you set a display name (saved in browser local storage).
 - The **microphone** button uses browser speech recognition when supported.
@@ -40,6 +40,7 @@ Requires Node.js 20.9 or newer and npm.
 npm run test
 npm run typecheck
 npm run build
+npm run format:check
 ```
 
 ## Structure
@@ -49,6 +50,8 @@ npm run build
 - `src/components/icon.tsx` — interface icons
 - `src/components/voice-input.tsx` — browser speech recognition
 - `src/lib/chat.ts` — shared message types, limits, and server input validation
+- `src/lib/models.ts` — the three enabled models and photo capabilities
+- `src/lib/reply-stream.ts` — streamed reply reader and connection error handling
 - `src/lib/server/nvidia.ts` — NVIDIA NIM API client (server-only)
 - `src/lib/server/perzo.ts` — Perzo personality and reply dispatcher
 - `src/app/api/chat/route.ts` — POST endpoint with validation and error handling
@@ -68,3 +71,7 @@ Choose Llama 3.2 11B, Llama 3.2 90B, or DeepSeek Flash from the model picker att
 ## Reply feedback
 
 A short chime plays when an answer finishes. Errors trigger a brief vibration on supported devices. Both are enabled automatically with no settings switches. Browser audio rules, device volume, and vibration support still apply. Screen sharing is not included.
+
+## Maintaining the code
+
+Run `npm.cmd run format` to format source files, or `npm.cmd run format:check` to check formatting. Type checking also detects unused local variables and parameters. Dependency versions are pinned, and `npm ci` installs the lockfile versions for repeatable builds. See [the layout guide](docs/chat-layout.md) for message margins and thinking-logo spacing.

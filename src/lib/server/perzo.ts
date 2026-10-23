@@ -1,5 +1,5 @@
 import "server-only";
-import type { ChatMessage } from "@/lib/chat";
+import { MAX_REPLY_LENGTH, type ChatMessage } from "@/lib/chat";
 import { getNvidiaReply } from "./nvidia";
 
 export const instructions =
@@ -22,14 +22,14 @@ export const instructions =
   "Keep your reply under 3500 characters.";
 
 function limitReply(reply: string) {
-  return reply.length > 4000 ? `${reply.slice(0, 3999)}…` : reply;
+  return reply.length > MAX_REPLY_LENGTH ? `${reply.slice(0, MAX_REPLY_LENGTH - 1)}…` : reply;
 }
 
 export async function getPerzoReply(
   messages: ChatMessage[],
   signal?: AbortSignal,
   onDelta?: (text: string) => void,
-  model?: string
+  model?: string,
 ): Promise<string> {
   const reply = await getNvidiaReply({ messages, instructions, signal, onDelta, model });
   return limitReply(reply);

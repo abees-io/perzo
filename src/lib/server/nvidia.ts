@@ -1,9 +1,9 @@
 import OpenAI from "openai";
-import type { ChatMessage } from "../chat";
-import { getModel } from "../models";
+import { MAX_REPLY_LENGTH, type ChatMessage } from "../chat";
+import { DEFAULT_MODEL_ID, getModel } from "../models";
 
 export const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
-export const NVIDIA_DEFAULT_MODEL = "meta/llama-3.2-11b-vision-instruct";
+export const NVIDIA_DEFAULT_MODEL = DEFAULT_MODEL_ID;
 
 export class NvidiaConfigurationError extends Error {
   constructor(message: string) {
@@ -13,7 +13,10 @@ export class NvidiaConfigurationError extends Error {
 }
 
 export class NvidiaAPIError extends Error {
-  constructor(message: string, public readonly status: number = 502) {
+  constructor(
+    message: string,
+    public readonly status: number = 502,
+  ) {
     super(message);
     this.name = "NvidiaAPIError";
   }
@@ -37,8 +40,8 @@ export interface NvidiaReplyOptions {
 export async function getNvidiaReply({
   messages,
   instructions,
-  model = process.env.NVIDIA_MODEL?.trim() || NVIDIA_DEFAULT_MODEL,
-  apiKey = process.env.NVIDIA_API_KEY?.trim(),
+  model,
+  apiKey,
   baseUrl = process.env.NVIDIA_BASE_URL?.trim() || NVIDIA_BASE_URL,
   signal,
   fetcher,
@@ -47,7 +50,7 @@ export async function getNvidiaReply({
   const resolvedApiKey = (apiKey ?? process.env.NVIDIA_API_KEY)?.trim();
   if (!resolvedApiKey || resolvedApiKey.startsWith("replace_")) {
     throw new NvidiaConfigurationError(
-      "NVIDIA API key is missing. Add NVIDIA_API_KEY to your server-side environment (.env.local) and restart the app."
+      "NVIDIA API key is missing. Add NVIDIA_API_KEY to your server-side environment (.env.local) and restart the app.",
     );
   }
 
@@ -67,34 +70,60 @@ export async function getNvidiaReply({
 
   for (const m of messages) {
     if (m.role === "user" && m.image) {
-      chatMessages.push({ role: "user", content: [{ type: "text", text: m.content }, { type: "image_url", image_url: { url: m.image } }] });
+      chatMessages.push({
+        role: "user",
+        content: [
+          { type: "text", text: m.content },
+          { type: "image_url", image_url: { url: m.image } },
+        ],
+      });
       continue;
     }
     chatMessages.push({
-      role: m.role as "user" | "assistant",
+      role: m.role,
       content: m.content,
     });
   }
 
   const resolvedModel = model?.trim() || process.env.NVIDIA_MODEL?.trim() || NVIDIA_DEFAULT_MODEL;
-  if (!getModel(resolvedModel)) throw new NvidiaConfigurationError("This model is no longer enabled. Choose Llama 3.2 11B, Llama 3.2 90B or DeepSeek, and update NVIDIA_MODEL if needed.");
-  if (messages.some(message => message.image) && !getModel(resolvedModel)?.vision) throw new NvidiaAPIError("This model accepts text only. Choose a model marked Chat + photos, or start a new chat without photos.", 400);
+  if (!getModel(resolvedModel))
+    throw new NvidiaConfigurationError(
+      "This model is no longer enabled. Choose Llama 3.2 11B, Llama 3.2 90B or DeepSeek, and update NVIDIA_MODEL if needed.",
+    );
+  if (messages.some((message) => message.image) && !getModel(resolvedModel)?.vision)
+    throw new NvidiaAPIError(
+      "This model accepts text only. Choose a model marked Chat + photos, or start a new chat without photos.",
+      400,
+    );
 
   try {
     if (onDelta) {
-      const stream = await client.chat.completions.create({ model: resolvedModel, messages: chatMessages, temperature: 0.2, top_p: 0.7, max_tokens: 1024, stream: true }, { signal });
+      const stream = await client.chat.completions.create(
+        {
+          model: resolvedModel,
+          messages: chatMessages,
+          temperature: 0.2,
+          top_p: 0.7,
+          max_tokens: 1024,
+          stream: true,
+        },
+        { signal },
+      );
       let reply = "";
       try {
         for await (const chunk of stream) {
           const text = chunk.choices[0]?.delta.content;
           if (!text) continue;
-          const delta = text.slice(0, 4000 - reply.length);
+          const delta = text.slice(0, MAX_REPLY_LENGTH - reply.length);
           reply += delta;
           if (delta) onDelta(delta);
-          if (reply.length >= 4000) break;
+          if (reply.length >= MAX_REPLY_LENGTH) break;
         }
-      } finally { stream.controller.abort(); }
-      if (!reply.trim()) throw new NvidiaAPIError("NVIDIA returned no answer text. Please try again.");
+      } finally {
+        stream.controller.abort();
+      }
+      if (!reply.trim())
+        throw new NvidiaAPIError("NVIDIA returned no answer text. Please try again.");
       return reply.trim();
     }
     const completion = await client.chat.completions.create(
@@ -105,12 +134,10 @@ export async function getNvidiaReply({
         top_p: 0.7,
         max_tokens: 1024,
       },
-      { signal }
+      { signal },
     );
 
-    const message = completion.choices?.[0]?.message as
-      | (OpenAI.Chat.Completions.ChatCompletionMessage & { reasoning_content?: string })
-      | undefined;
+    const message = completion.choices?.[0]?.message;
     const reply = message?.content?.trim();
     if (!reply) {
       throw new NvidiaAPIError("NVIDIA API returned an empty response. Please try again.", 502);
@@ -126,18 +153,23 @@ export async function getNvidiaReply({
         status === 401 || status === 403
           ? "NVIDIA API authentication failed. Verify NVIDIA_API_KEY in your server settings."
           : status === 429
-          ? "NVIDIA API rate limit reached. Please wait a moment and try again."
-          : status === 404
-          ? `NVIDIA model "${resolvedModel}" is unavailable. Choose another model or check NVIDIA account access.`
-          : `NVIDIA API error (${status}): ${error.message || "Failed to communicate with NVIDIA API."}`;
-      throw new NvidiaAPIError(message, status === 429 ? 429 : status === 401 || status === 403 ? 401 : 502);
+            ? "NVIDIA API rate limit reached. Please wait a moment and try again."
+            : status === 404
+              ? `NVIDIA model "${resolvedModel}" is unavailable. Choose another model or check NVIDIA account access.`
+              : status === 400 || status === 422
+                ? "NVIDIA couldn’t process this message. Try a shorter message or a different model."
+                : "NVIDIA is temporarily unavailable. Please try again shortly.";
+      throw new NvidiaAPIError(
+        message,
+        status === 429 ? 429 : status === 401 || status === 403 ? 401 : 502,
+      );
     }
     if (error instanceof Error && error.name === "AbortError") {
       throw error;
     }
     throw new NvidiaAPIError(
-      error instanceof Error ? error.message : "Could not reach NVIDIA API. Please try again.",
-      502
+      "Could not reach NVIDIA. Please check the connection and try again.",
+      502,
     );
   }
 }
