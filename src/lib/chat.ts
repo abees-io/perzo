@@ -77,10 +77,7 @@ export function validateMessages(body: unknown): ChatMessage[] {
 export function extractModel(body: unknown): string | undefined {
   if (body && typeof body === "object" && "model" in body) {
     const model = sanitizeModelId(body.model);
-    if (!model)
-      throw new ChatValidationError(
-        "Choose Llama 3.2 11B, Llama 3.2 90B or DeepSeek from the model picker.",
-      );
+    if (!model) throw new ChatValidationError("Choose an available model from the model picker.");
     return model;
   }
   return undefined;

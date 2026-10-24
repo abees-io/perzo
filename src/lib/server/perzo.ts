@@ -1,5 +1,7 @@
 import "server-only";
 import { MAX_REPLY_LENGTH, type ChatMessage } from "@/lib/chat";
+import { DEFAULT_MODEL_ID, getModel } from "@/lib/models";
+import { getGeminiReply } from "./gemini";
 import { getNvidiaReply } from "./nvidia";
 
 export const instructions =
@@ -31,6 +33,8 @@ export async function getPerzoReply(
   onDelta?: (text: string) => void,
   model?: string,
 ): Promise<string> {
-  const reply = await getNvidiaReply({ messages, instructions, signal, onDelta, model });
+  const resolvedModel = model || process.env.NVIDIA_MODEL?.trim() || DEFAULT_MODEL_ID;
+  const getReply = getModel(resolvedModel)?.provider === "gemini" ? getGeminiReply : getNvidiaReply;
+  const reply = await getReply({ messages, instructions, signal, onDelta, model: resolvedModel });
   return limitReply(reply);
 }

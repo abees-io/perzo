@@ -72,8 +72,8 @@ export function ModelPicker({
           ))}
         </div>
         <p className="model-access-note">
-          Availability and limits depend on your NVIDIA account. Text-only models don’t receive
-          photo attachments.
+          Availability and limits depend on your Google or NVIDIA account. Text-only models don’t
+          receive photo attachments.
         </p>
       </dialog>
     </div>

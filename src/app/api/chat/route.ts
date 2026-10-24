@@ -2,6 +2,8 @@ import { ChatValidationError, MAX_REQUEST_BYTES, validateMessages, extractModel 
 import { getPerzoReply } from "@/lib/server/perzo";
 import { NvidiaAPIError, NvidiaConfigurationError } from "@/lib/server/nvidia";
 
+import { GeminiAPIError, GeminiConfigurationError } from "@/lib/server/gemini";
+
 export const runtime = "nodejs";
 
 // Keep the provider deadline below the hosting function's runtime budget.
@@ -74,7 +76,10 @@ export async function POST(request: Request) {
             emit({
               error: streamSignal.aborted
                 ? "The reply took too long. Please try again."
-                : error instanceof NvidiaConfigurationError || error instanceof NvidiaAPIError
+                : error instanceof NvidiaConfigurationError ||
+                    error instanceof NvidiaAPIError ||
+                    error instanceof GeminiConfigurationError ||
+                    error instanceof GeminiAPIError
                   ? error.message
                   : "Perzo couldn’t finish that reply. Please try again.",
             });
@@ -104,10 +109,10 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    if (error instanceof NvidiaConfigurationError) {
+    if (error instanceof NvidiaConfigurationError || error instanceof GeminiConfigurationError) {
       return Response.json({ error: error.message }, { status: 503 });
     }
-    if (error instanceof NvidiaAPIError) {
+    if (error instanceof NvidiaAPIError || error instanceof GeminiAPIError) {
       return Response.json({ error: error.message }, { status: error.status });
     }
     return Response.json(

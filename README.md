@@ -1,8 +1,8 @@
 # Perzo
 
-A personal AI companion built with Next.js, TypeScript, Tailwind CSS, and the NVIDIA NIM API. The mobile-first interface uses a dark glass composer, orange/coral/purple branding, and a logo that animates only while waiting for a reply.
+A personal AI companion built with Next.js, TypeScript, Tailwind CSS, and Google Gemini / NVIDIA NIM APIs. The mobile-first interface uses a dark glass composer, orange/coral/purple branding, and a logo that animates only while waiting for a reply.
 
-Chat uses NVIDIA’s OpenAI-compatible API, with a selectable model in the composer. The default is `meta/llama-3.2-11b-vision-instruct`.
+Chat uses Google and NVIDIA’s OpenAI-compatible APIs, with a selectable model in the composer. The default is `meta/llama-3.2-11b-vision-instruct`.
 
 ## Setup
 
@@ -66,7 +66,7 @@ npm run format:check
 
 ## Model selection
 
-Choose Llama 3.2 11B, Llama 3.2 90B, or DeepSeek Flash from the model picker attached to the message bar. Your selection is remembered in this browser. Both Llama models accept photos; DeepSeek receives text only, with earlier photo attachments omitted. Availability and quotas depend on your NVIDIA account. Video analysis is not included.
+Choose Gemini 3.8 Flash, Llama 3.2 11B, Llama 3.2 90B, or DeepSeek Flash from the model picker attached to the message bar. Your selection is remembered in this browser. Gemini and both Llama models accept photos; DeepSeek receives text only, with earlier photo attachments omitted. Availability and quotas depend on the selected provider and your account. Video analysis is not included.
 
 The plus button opens an attachment menu with photo upload and camera options.
 
@@ -77,3 +77,11 @@ A short chime plays when an answer finishes. Errors trigger a brief vibration on
 ## Maintaining the code
 
 Run `npm.cmd run format` to format source files, or `npm.cmd run format:check` to check formatting. Type checking also detects unused local variables and parameters. Dependency versions are pinned, and `npm ci` installs the lockfile versions for repeatable builds. See [the layout guide](docs/chat-layout.md) for message margins and thinking-logo spacing.
+
+## Gemini
+
+Add `GEMINI_API_KEY` from Google AI Studio to `.env.local`, restart Perzo, and select **Gemini 3.8 Flash** in the message bar. The model ID is `gemini-3.8-flash`; no separate model environment variable is needed. Your NVIDIA models remain available with their existing key.
+
+On Vercel, add `GEMINI_API_KEY` to the project environment for Production (and Preview if needed), then redeploy. Keys stay on the server. Free-tier quotas and account availability apply; a rate-limit error means you should wait or select another model.
+
+Uses Google’s [OpenAI-compatible API](https://ai.google.dev/gemini-api/docs/openai) with streaming, conversation history, and image input.

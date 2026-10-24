@@ -61,7 +61,7 @@ export function MediaMenu({
             Take a photo<small>Use your camera</small>
           </span>
         </button>
-        {!photosEnabled && <p>Photo uploads require a Llama vision model.</p>}
+        {!photosEnabled && <p>Choose a model marked Chat + photos to attach a photo.</p>}
       </dialog>
     </div>
   );
