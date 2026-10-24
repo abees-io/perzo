@@ -7,13 +7,11 @@ export function MediaMenu({
   photosEnabled,
   onPhoto,
   onCamera,
-  onVideo,
 }: {
   disabled: boolean;
   photosEnabled: boolean;
   onPhoto: () => void;
   onCamera: () => void;
-  onVideo: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null),
     button = useRef<HTMLButtonElement>(null);
@@ -61,12 +59,6 @@ export function MediaMenu({
           <Icon name="camera" />
           <span>
             Take a photo<small>Use your camera</small>
-          </span>
-        </button>
-        <button type="button" onClick={() => choose(onVideo)}>
-          <Icon name="video" />
-          <span>
-            Upscale a video<small>NVIDIA VSR · setup required</small>
           </span>
         </button>
         {!photosEnabled && <p>Photo uploads require a Llama vision model.</p>}

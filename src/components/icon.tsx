@@ -1,5 +1,4 @@
 type IconName =
-  | "video"
   | "image"
   | "camera"
   | "menu"
@@ -16,12 +15,6 @@ type IconName =
   | "search"
   | "chevron";
 const paths: Record<IconName, React.ReactNode> = {
-  video: (
-    <>
-      <rect x="3" y="5" width="18" height="14" rx="3" />
-      <path d="m10 9 5 3-5 3V9Z" />
-    </>
-  ),
   image: (
     <>
       <rect x="3" y="3" width="18" height="18" rx="4" />
