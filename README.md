@@ -68,6 +68,8 @@ npm run format:check
 
 Choose Llama 3.2 11B, Llama 3.2 90B, or DeepSeek Flash from the model picker attached to the message bar. Your selection is remembered in this browser. Both Llama models accept photos; DeepSeek receives text only, with earlier photo attachments omitted. Availability and quotas depend on your NVIDIA account. Video analysis is not included.
 
+The plus button opens an attachment menu with photo upload, camera and **Upscale a video**. **Video Super Resolution** is a separate tool in the model picker. Its UI supports local previews and output settings, with a **Setup required** status. It does not run enhancement until a GPU-hosted VSR service and gateway are implemented. See the [VSR setup guide](docs/video-super-resolution.md).
+
 ## Reply feedback
 
 A short chime plays when an answer finishes. Errors trigger a brief vibration on supported devices. Both are enabled automatically with no settings switches. Browser audio rules, device volume, and vibration support still apply. Screen sharing is not included.

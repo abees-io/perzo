@@ -40,7 +40,7 @@ export function ModelPicker({
         <div className="model-dialog-heading">
           <div>
             <h2 id="models-title">Choose your model</h2>
-            <p>Choose how Perzo answers</p>
+            <p>Chat models and media tools</p>
           </div>
           <button
             className="icon-button"

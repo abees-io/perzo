@@ -86,7 +86,7 @@ export async function getNvidiaReply({
   }
 
   const resolvedModel = model?.trim() || process.env.NVIDIA_MODEL?.trim() || NVIDIA_DEFAULT_MODEL;
-  if (!getModel(resolvedModel))
+  if (getModel(resolvedModel)?.mode !== "chat")
     throw new NvidiaConfigurationError(
       "This model is no longer enabled. Choose Llama 3.2 11B, Llama 3.2 90B or DeepSeek, and update NVIDIA_MODEL if needed.",
     );

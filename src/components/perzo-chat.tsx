@@ -8,8 +8,11 @@ import { VoiceInput } from "./voice-input";
 import { readReplyStream } from "@/lib/reply-stream";
 import { preparePhoto } from "@/lib/photo";
 import { getGreeting } from "@/lib/greeting";
-import { DEFAULT_MODEL_ID, getModel, sanitizeModelId } from "@/lib/models";
+import { DEFAULT_MODEL_ID, VSR_MODEL_ID, getModel, sanitizeModelId } from "@/lib/models";
 import { ModelPicker } from "./model-picker";
+import { MediaMenu } from "./media-menu";
+import { VideoUpscaler } from "./video-upscaler";
+import { validateVideoPreview } from "@/lib/video";
 
 type DisplayMessage = ChatMessage & { id: string };
 type AssistantState = "idle" | "thinking" | "working" | "generating";
@@ -200,11 +203,12 @@ export function PerzoChat() {
   const [profileNotice, setProfileNotice] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const [composerNotice, setComposerNotice] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(false);
   const [photo, setPhoto] = useState<string | undefined>();
+  const [videoFile, setVideoFile] = useState<File | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL_ID);
   const currentModel = getModel(selectedModel)!;
+  const isVideo = currentModel.mode === "video";
   useEffect(() => {
     try {
       const saved = sanitizeModelId(localStorage.getItem("perzo.selectedModel"));
@@ -213,7 +217,9 @@ export function PerzoChat() {
   }, []);
   function changeModel(id: string) {
     if (photo && !getModel(id)?.vision) {
-      setComposerNotice("Remove the attached photo before choosing a text-only model.");
+      setComposerNotice(
+        "Remove the attached photo before choosing a text-only model or video tool.",
+      );
       return;
     }
     setSelectedModel(id);
@@ -226,6 +232,15 @@ export function PerzoChat() {
 
   const photoInput = useRef<HTMLInputElement>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
+  const videoInput = useRef<HTMLInputElement>(null);
+  function openVideo() {
+    if (photo) {
+      setComposerNotice("Remove the attached photo before adding a video.");
+      return;
+    }
+    changeModel(VSR_MODEL_ID);
+    videoInput.current?.click();
+  }
   const audio = useRef<AudioContext | null>(null);
   function unlockAudio() {
     try {
@@ -263,7 +278,6 @@ export function PerzoChat() {
     setComposerNotice(null);
     try {
       setPhoto(await preparePhoto(file));
-      setExpanded(true);
     } catch (failure) {
       setComposerNotice(failure instanceof Error ? failure.message : "Couldn’t open this photo.");
     } finally {
@@ -365,7 +379,7 @@ export function PerzoChat() {
   );
 
   async function requestReply(history: DisplayMessage[]) {
-    if (locked.current || preparing || listening) return;
+    if (locked.current || preparing || listening || isVideo) return;
     unlockAudio();
     locked.current = true;
     setState("thinking");
@@ -429,7 +443,7 @@ export function PerzoChat() {
     }
   }
   function send(text = draft) {
-    if (locked.current || preparing || listening) return;
+    if (locked.current || preparing || listening || isVideo) return;
     const content = text.trim() || (photo ? "What’s in this photo?" : "");
     if (!content || content.length > MAX_MESSAGE_LENGTH) return;
     const history: DisplayMessage[] = [
@@ -438,7 +452,6 @@ export function PerzoChat() {
     ];
     setMessages(history);
     setPhoto(undefined);
-    setExpanded(false);
     setDraft("");
     setRetryMessages(null);
     setComposerNotice(null);
@@ -470,7 +483,7 @@ export function PerzoChat() {
     setActiveId("personal");
     setDraft("");
     setPhoto(undefined);
-    setExpanded(false);
+    setVideoFile(null);
     setError(null);
     setRetryMessages(null);
     setState("idle");
@@ -509,7 +522,7 @@ export function PerzoChat() {
     setActiveId(id);
     setDraft("");
     setPhoto(undefined);
-    setExpanded(false);
+    setVideoFile(null);
     setError(null);
     setRetryMessages(null);
     setState("idle");
@@ -686,7 +699,13 @@ export function PerzoChat() {
         </header>
         <section className="chat-column" aria-label="Chat with Perzo">
           <div className="conversation-area">
-            {messages.length === 0 ? (
+            {isVideo ? (
+              <VideoUpscaler
+                file={videoFile}
+                onUpload={openVideo}
+                onRemove={() => setVideoFile(null)}
+              />
+            ) : messages.length === 0 ? (
               <div className="minimal-welcome">
                 <div className="welcome-center">
                   <BrandMark className="welcome-brand" />
@@ -785,6 +804,24 @@ export function PerzoChat() {
           <div className="composer-wrap">
             <div className="composer-model-surface">
               <ModelPicker value={selectedModel} disabled={controlsBusy} onChange={changeModel} />
+              <input
+                hidden
+                type="file"
+                ref={videoInput}
+                accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!file) return;
+                  const error = validateVideoPreview(file);
+                  if (error) {
+                    setComposerNotice(error);
+                    return;
+                  }
+                  setVideoFile(file);
+                  setComposerNotice(null);
+                }}
+              />
               {composerNotice && (
                 <p className="composer-notice" role="status">
                   {composerNotice}
@@ -795,138 +832,125 @@ export function PerzoChat() {
                   Listening… tap stop when you’re done. Review your words before sending.
                 </p>
               )}
-              <form
-                className={`composer media-composer ${expanded || photo ? "is-expanded" : ""}`}
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  send();
-                }}
-              >
-                <input
-                  hidden
-                  ref={photoInput}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={(event) => {
-                    void attachPhoto(event.target.files?.[0]);
-                    event.target.value = "";
+              {!isVideo && (
+                <form
+                  className="composer media-composer"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    send();
                   }}
-                />
-                <input
-                  hidden
-                  ref={cameraInput}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(event) => {
-                    void attachPhoto(event.target.files?.[0]);
-                    event.target.value = "";
-                  }}
-                />
-                <div id="media-panel" className="media-panel" inert={!expanded && !photo}>
-                  <div className="media-panel-inner">
-                    {photo && (
-                      <div className="photo-preview">
-                        <img src={photo} alt="Photo ready to send" />
-                        <button
-                          type="button"
-                          disabled={controlsBusy}
-                          aria-label="Remove photo"
-                          onClick={() => setPhoto(undefined)}
-                        >
-                          <Icon name="close" size={16} />
-                        </button>
-                      </div>
-                    )}
-                    <div className="media-actions">
-                      <button
-                        type="button"
-                        disabled={controlsBusy || !currentModel.vision}
-                        onClick={() => photoInput.current?.click()}
-                      >
-                        <Icon name="image" />
-                        Add photo
-                      </button>
-                      <button
-                        type="button"
-                        disabled={controlsBusy || !currentModel.vision}
-                        onClick={() => cameraInput.current?.click()}
-                      >
-                        <Icon name="camera" />
-                        Camera
-                      </button>
-                    </div>
-                    <p>
-                      {currentModel.vision
-                        ? "One photo at a time · Videos aren’t supported."
-                        : "Text model · Switch to Chat + photos for image uploads."}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  className="composer-add"
-                  type="button"
-                  onClick={() => setExpanded(!expanded)}
-                  disabled={controlsBusy}
-                  aria-expanded={expanded}
-                  aria-controls="media-panel"
-                  aria-label={expanded ? "Collapse attachments" : "Add media"}
                 >
-                  <Icon name={expanded ? "close" : "attachment"} size={21} />
-                </button>
-                <div className="composer-field">
-                  <label className="sr-only" htmlFor="message">
-                    Message Perzo
-                  </label>
-                  <textarea
-                    id="message"
-                    ref={input}
-                    value={draft}
-                    maxLength={MAX_MESSAGE_LENGTH}
-                    rows={1}
-                    placeholder={preparing ? "Preparing photo…" : "Ask me anything…"}
-                    aria-describedby="composer-hint"
-                    autoCapitalize="sentences"
-                    spellCheck
-                    disabled={listening}
+                  <input
+                    hidden
+                    ref={photoInput}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
                     onChange={(event) => {
-                      setDraft(event.target.value);
-                      if (error) setError(null);
-                    }}
-                    onKeyDown={(event) => {
-                      if (
-                        event.key === "Enter" &&
-                        !event.shiftKey &&
-                        !event.nativeEvent.isComposing
-                      ) {
-                        event.preventDefault();
-                        send();
-                      }
+                      void attachPhoto(event.target.files?.[0]);
+                      event.target.value = "";
                     }}
                   />
+                  <input
+                    hidden
+                    ref={cameraInput}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(event) => {
+                      void attachPhoto(event.target.files?.[0]);
+                      event.target.value = "";
+                    }}
+                  />
+                  {photo && (
+                    <div className="photo-preview">
+                      <img src={photo} alt="Photo ready to send" />
+                      <button
+                        type="button"
+                        disabled={controlsBusy}
+                        aria-label="Remove photo"
+                        onClick={() => setPhoto(undefined)}
+                      >
+                        <Icon name="close" size={16} />
+                      </button>
+                    </div>
+                  )}
+                  <MediaMenu
+                    disabled={controlsBusy}
+                    photosEnabled={currentModel.vision}
+                    onPhoto={() => photoInput.current?.click()}
+                    onCamera={() => cameraInput.current?.click()}
+                    onVideo={openVideo}
+                  />
+                  <div className="composer-field">
+                    <label className="sr-only" htmlFor="message">
+                      Message Perzo
+                    </label>
+                    <textarea
+                      id="message"
+                      ref={input}
+                      value={draft}
+                      maxLength={MAX_MESSAGE_LENGTH}
+                      rows={1}
+                      placeholder={preparing ? "Preparing photo…" : "Ask me anything…"}
+                      aria-describedby="composer-hint"
+                      autoCapitalize="sentences"
+                      spellCheck
+                      disabled={listening}
+                      onChange={(event) => {
+                        setDraft(event.target.value);
+                        if (error) setError(null);
+                      }}
+                      onKeyDown={(event) => {
+                        if (
+                          event.key === "Enter" &&
+                          !event.shiftKey &&
+                          !event.nativeEvent.isComposing
+                        ) {
+                          event.preventDefault();
+                          send();
+                        }
+                      }}
+                    />
+                  </div>
+                  <VoiceInput
+                    disabled={busy || preparing}
+                    onTranscript={(text) =>
+                      setDraft((previous) =>
+                        `${previous.trimEnd()}${previous.trim() ? " " : ""}${text}`.slice(
+                          0,
+                          MAX_MESSAGE_LENGTH,
+                        ),
+                      )
+                    }
+                    onListeningChange={setListening}
+                    onError={setComposerNotice}
+                  />
+                  <button
+                    className="send-button"
+                    type="submit"
+                    disabled={controlsBusy || (!draft.trim() && !photo)}
+                    aria-label={busy ? "Waiting for Perzo" : "Send message"}
+                  >
+                    {busy ? <span className="send-spinner" /> : <Icon name="send" size={21} />}
+                  </button>
+                </form>
+              )}
+              {isVideo && (
+                <div className="video-composer-controls">
+                  <MediaMenu
+                    disabled={controlsBusy}
+                    photosEnabled={false}
+                    onPhoto={() => {}}
+                    onCamera={() => {}}
+                    onVideo={openVideo}
+                  />
+                  <span>Local preview · setup required</span>
+                  <button type="button" onClick={openVideo}>
+                    <Icon name="video" size={17} />
+                    Add video
+                  </button>
                 </div>
-                <VoiceInput
-                  disabled={busy || preparing}
-                  onTranscript={(text) =>
-                    setDraft((previous) =>
-                      `${previous.trimEnd()}${previous.trim() ? " " : ""}${text}`.slice(
-                        0,
-                        MAX_MESSAGE_LENGTH,
-                      ),
-                    )
-                  }
-                  onListeningChange={setListening}
-                  onError={setComposerNotice}
-                />
-                <button
-                  className="send-button"
-                  type="submit"
-                  disabled={controlsBusy || (!draft.trim() && !photo)}
-                  aria-label={busy ? "Waiting for Perzo" : "Send message"}
-                >
-                  {busy ? <span className="send-spinner" /> : <Icon name="send" size={21} />}
-                </button>
-              </form>
+              )}
             </div>
             <div className="composer-footer" id="composer-hint">
               <span className="keyboard-hint">Enter to send · Shift + Enter for a new line</span>

@@ -5,8 +5,10 @@ export interface ModelOption {
   icon: string;
   description: string;
   vision: boolean;
+  mode: "chat" | "video";
 }
 export const DEFAULT_MODEL_ID = "meta/llama-3.2-11b-vision-instruct";
+export const VSR_MODEL_ID = "nvidia/vsr";
 export const AVAILABLE_MODELS: ModelOption[] = [
   {
     id: DEFAULT_MODEL_ID,
@@ -14,6 +16,7 @@ export const AVAILABLE_MODELS: ModelOption[] = [
     tag: "Chat + photos",
     icon: "◈",
     vision: true,
+    mode: "chat",
     description: "Everyday conversations and image questions.",
   },
   {
@@ -22,6 +25,7 @@ export const AVAILABLE_MODELS: ModelOption[] = [
     tag: "Chat + photos",
     icon: "◈",
     vision: true,
+    mode: "chat",
     description: "Larger Meta model for text and images.",
   },
   {
@@ -30,7 +34,18 @@ export const AVAILABLE_MODELS: ModelOption[] = [
     tag: "Text chat",
     icon: "ϟ",
     vision: false,
+    mode: "chat",
     description: "Reasoning, coding and text questions.",
+  },
+  {
+    id: VSR_MODEL_ID,
+    name: "Video Super Resolution",
+    tag: "Setup required",
+    icon: "◇",
+    vision: false,
+    mode: "video",
+    description:
+      "NVIDIA video upscaling. Preview a clip and choose output settings; a GPU-hosted VSR server is required to process it.",
   },
 ];
 export function getModel(id: unknown) {
