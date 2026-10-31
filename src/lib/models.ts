@@ -5,11 +5,30 @@ export interface ModelOption {
   icon: string;
   description: string;
   vision: boolean;
-  provider: "nvidia" | "gemini";
+  provider: "nvidia" | "gemini" | "groq";
 }
 export const DEFAULT_MODEL_ID = "meta/llama-3.2-11b-vision-instruct";
 export const GEMINI_MODEL_ID = "gemini-3.8-flash";
+export const GROQ_MODEL_ID = "qwen/qwen3.8-27b";
 export const AVAILABLE_MODELS: ModelOption[] = [
+  {
+    id: GROQ_MODEL_ID,
+    name: "Qwen 3.8 27B",
+    tag: "Ultra-fast chat",
+    icon: "⚡",
+    provider: "groq",
+    vision: false,
+    description: "Extremely fast multilingual reasoning on Groq LPU hardware.",
+  },
+  {
+    id: "openai/gpt-oss-120b",
+    name: "GPT-OSS 120B",
+    tag: "Reasoning",
+    icon: "⚡",
+    provider: "groq",
+    vision: false,
+    description: "High-capacity 120B model on Groq for deep reasoning and code.",
+  },
   {
     id: GEMINI_MODEL_ID,
     name: "Gemini 3.8 Flash",

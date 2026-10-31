@@ -3,6 +3,7 @@ import { getPerzoReply } from "@/lib/server/perzo";
 import { NvidiaAPIError, NvidiaConfigurationError } from "@/lib/server/nvidia";
 
 import { GeminiAPIError, GeminiConfigurationError } from "@/lib/server/gemini";
+import { GroqAPIError, GroqConfigurationError } from "@/lib/server/groq";
 
 export const runtime = "nodejs";
 
@@ -79,7 +80,9 @@ export async function POST(request: Request) {
                 : error instanceof NvidiaConfigurationError ||
                     error instanceof NvidiaAPIError ||
                     error instanceof GeminiConfigurationError ||
-                    error instanceof GeminiAPIError
+                    error instanceof GeminiAPIError ||
+                    error instanceof GroqConfigurationError ||
+                    error instanceof GroqAPIError
                   ? error.message
                   : "Perzo couldn’t finish that reply. Please try again.",
             });
@@ -109,10 +112,18 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    if (error instanceof NvidiaConfigurationError || error instanceof GeminiConfigurationError) {
+    if (
+      error instanceof NvidiaConfigurationError ||
+      error instanceof GeminiConfigurationError ||
+      error instanceof GroqConfigurationError
+    ) {
       return Response.json({ error: error.message }, { status: 503 });
     }
-    if (error instanceof NvidiaAPIError || error instanceof GeminiAPIError) {
+    if (
+      error instanceof NvidiaAPIError ||
+      error instanceof GeminiAPIError ||
+      error instanceof GroqAPIError
+    ) {
       return Response.json({ error: error.message }, { status: error.status });
     }
     return Response.json(
