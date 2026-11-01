@@ -1401,7 +1401,7 @@ dialog::backdrop {
 /* Smoky glass composer with an expanding media tray. */
 .composer.media-composer {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 44px 44px;
+  grid-template-columns: 44px minmax(0, 1fr) 44px 44px 44px;
   gap: 4px;
   padding: 8px;
   position: relative;
@@ -1538,7 +1538,7 @@ dialog::backdrop {
 
 @media (max-width: 600px) {
   .composer.media-composer {
-    grid-template-columns: 44px minmax(0, 1fr) 44px 44px;
+    grid-template-columns: 40px minmax(0, 1fr) 40px 40px 40px;
     gap: 2px;
     padding: 6px;
   }
