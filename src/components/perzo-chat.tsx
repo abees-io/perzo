@@ -719,6 +719,26 @@ export function PerzoChat() {
             <Icon name="new-chat" size={19} />
           </button>
         </header>
+        {speakingId && (
+          <div
+            className="voice-speaking-overlay"
+            role="status"
+            aria-live="polite"
+            onClick={() => {
+              stopSpeaking();
+              setSpeakingId(null);
+            }}
+          >
+            <div className="voice-speaking-card">
+              <img
+                className="voice-speaking-orb"
+                src="/voice-orb-transparent.png"
+                alt="Perzo is speaking"
+              />
+              <p className="voice-speaking-caption">Perzo is speaking… tap the orb to stop.</p>
+            </div>
+          </div>
+        )}
         <section className="chat-column" aria-label="Chat with Perzo">
           <div className="conversation-area">
             {messages.length === 0 ? (
@@ -727,7 +747,7 @@ export function PerzoChat() {
                   {busy ? (
                     <div className="welcome-brand" style={{ display: "grid", placeItems: "center" }}>
                       <div style={{ width: "72px", height: "72px" }}>
-                        <div className="iridescent-orb" style={{ width: "72px", height: "72px" }} />
+                        <img className="voice-orb-image" src="/voice-orb-transparent.png" alt="" />
                       </div>
                     </div>
                   ) : (
@@ -765,14 +785,15 @@ export function PerzoChat() {
                             aria-label={speakingId === message.id ? "Stop voice reading" : "Read message out loud"}
                             title={speakingId === message.id ? "Stop reading" : "Read out loud"}
                           >
-                            <span
-                              className="glowing-orb voice-orb message-voice-orb"
+                            <img
+                              className="voice-orb-image message-voice-orb"
+                              src="/voice-orb-transparent.png"
+                              alt=""
                               aria-hidden="true"
                               style={{
                                 width: "15px",
                                 height: "15px",
                                 filter: speakingId === message.id ? "saturate(1.25) brightness(1.15)" : undefined,
-                                animationDuration: speakingId === message.id ? "1.5s" : "6s",
                               }}
                             />
                           </button>
@@ -788,7 +809,7 @@ export function PerzoChat() {
                 {busy && state !== "generating" && (
                   <div className="message message-assistant message-thinking">
                     <div className="message-avatar" style={{ width: "35px", height: "35px", borderRadius: "50%", overflow: "hidden" }}>
-                      <div className="iridescent-orb" />
+                      <img className="voice-orb-image" src="/voice-orb-transparent.png" alt="" />
                     </div>
                     <div className="message-content">
                       <span className="message-author">Perzo</span>
@@ -983,17 +1004,15 @@ export function PerzoChat() {
                     ? (speakingId === latestAssistantMessage.id ? "Stop speaking" : "Speak latest reply")
                     : (autoSpeak ? "Voice feedback: ON (Click to turn off)" : "Voice feedback: OFF (Click to turn on auto-speak)")}
                 >
-                  <span
-                    className="glowing-orb voice-orb"
+                  <img
+                    className="voice-orb-image"
+                    src="/voice-orb-transparent.png"
+                    alt=""
                     aria-hidden="true"
                     style={{
                       width: "21px",
                       height: "21px",
                       filter: autoSpeak || speakingId ? "saturate(1.25) brightness(1.15)" : undefined,
-                      animationDuration: autoSpeak || speakingId ? "1.5s" : "6s",
-                      boxShadow: autoSpeak || speakingId
-                        ? "0 0 18px rgba(56, 189, 248, 0.9), 0 0 32px rgba(37, 99, 235, 0.55)"
-                        : undefined,
                     }}
                   />
                 </button>

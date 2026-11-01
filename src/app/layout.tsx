@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./voice-orb.css";
 
 export const metadata: Metadata = {
   title: "Perzo — Your little everyday companion",
