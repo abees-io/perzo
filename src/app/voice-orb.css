@@ -12,6 +12,7 @@
   animation: voice-orb-breathe 2.2s ease-in-out infinite;
   filter: drop-shadow(0 0 18px rgba(90, 160, 255, .82));
 }
+.voice-orb-control.is-active .voice-orb-image { animation: voice-orb-activate .42s ease-out both, voice-orb-breathe 2.2s .42s ease-in-out infinite; }
 .message-voice-orb { width: 16px; height: 16px; }
 .message-speak-btn.is-speaking .message-voice-orb { animation: voice-orb-breathe 1.8s ease-in-out infinite; }
 
@@ -28,7 +29,7 @@
 }
 .voice-speaking-overlay.is-leaving { animation: voice-overlay-out .28s ease-in both; }
 .voice-speaking-card { display: grid; place-items: center; width: min(82vw, 360px); }
-.voice-speaking-orb-button { position: relative; display: grid; place-items: center; width: min(54vw, 220px); height: min(54vw, 220px); padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
+.voice-speaking-orb-button { position: relative; display: grid; place-items: center; width: min(54vw, 220px); height: min(54vw, 220px); padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; animation: voice-orb-activate .5s cubic-bezier(.2,.8,.2,1) both; }
 .voice-speaking-orb-button:focus-visible { outline: 2px solid #d8c6ff; outline-offset: 10px; }
 .voice-speaking-orb { position: relative; z-index: 1; width: 82%; height: 82%; object-fit: contain; filter: drop-shadow(0 0 25px rgba(80, 156, 255, .62)); animation: voice-orb-squiggle 2.8s ease-in-out infinite; }
 .voice-speaking-overlay.is-listening .voice-speaking-orb { animation: voice-orb-listen 3.4s ease-in-out infinite; filter: drop-shadow(0 0 22px rgba(80, 156, 255, .52)); }
@@ -36,6 +37,7 @@
 @keyframes voice-orb-materialize { 0% { opacity: .9; transform: scale(.18); filter: blur(5px); } 60% { opacity: .55; transform: scale(.92); filter: blur(1px); } 100% { opacity: 0; transform: scale(1.08); filter: blur(0); } }
 @keyframes voice-orb-squiggle { 0%, 100% { transform: rotate(-2deg) scale(.96, 1); } 25% { transform: rotate(2deg) scale(1.02, .96) skewX(-2deg); } 50% { transform: rotate(-3deg) scale(.97, 1.03) skewY(2deg); } 75% { transform: rotate(2deg) scale(1.02, .97) skewX(2deg); } }
 @keyframes voice-orb-listen { 0%, 100% { transform: scale(.92); } 50% { transform: scale(1); } }
+@keyframes voice-orb-activate { from { opacity: 0; transform: scale(.32); filter: blur(7px); } to { opacity: 1; transform: scale(1); filter: blur(0); } }
 @keyframes voice-overlay-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes voice-overlay-out { from { opacity: 1; } to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .voice-orb-control.is-active .voice-orb-image, .message-speak-btn.is-speaking .message-voice-orb, .voice-speaking-orb, .voice-speaking-grains { animation: none; } }
