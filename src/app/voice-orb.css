@@ -7,6 +7,7 @@
 }
 
 .voice-orb-control .voice-orb-image { width: 23px; height: 23px; }
+.voice-input-proxy { display: none !important; }
 .voice-orb-control.is-active .voice-orb-image {
   animation: voice-orb-breathe 2.2s ease-in-out infinite;
   filter: drop-shadow(0 0 18px rgba(90, 160, 255, .82));

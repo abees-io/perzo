@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { Icon } from "./icon";
 
 type RecognitionResult = { isFinal: boolean; 0: { transcript: string } };
@@ -27,11 +27,13 @@ export function VoiceInput({
   onTranscript,
   onListeningChange,
   onError,
+  controlRef,
 }: {
   disabled: boolean;
   onTranscript: (text: string) => void;
   onListeningChange: (listening: boolean) => void;
   onError: (message: string | null) => void;
+  controlRef?: RefObject<HTMLButtonElement | null>;
 }) {
   const [supported, setSupported] = useState(false);
   const [phase, setPhase] = useState<"idle" | "starting" | "listening">("idle");
@@ -125,8 +127,9 @@ export function VoiceInput({
         : "Start voice typing";
   return (
     <button
+      ref={controlRef}
       type="button"
-      className={`mic-button ${phase !== "idle" ? "is-listening" : ""}`}
+      className={`mic-button voice-input-proxy ${phase !== "idle" ? "is-listening" : ""}`}
       disabled={disabled || !supported}
       onClick={toggle}
       aria-label={supported ? label : "Voice typing unavailable in this browser"}

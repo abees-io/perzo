@@ -283,6 +283,7 @@ export function PerzoChat() {
   const shell = useRef<HTMLDivElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
+  const voiceInputButton = useRef<HTMLButtonElement>(null);
   const drawer = useRef<HTMLDialogElement>(null);
   const about = useRef<HTMLDialogElement>(null);
   const projectDialog = useRef<HTMLDialogElement>(null);
@@ -584,8 +585,6 @@ export function PerzoChat() {
     onSelect: selectWorkspace,
     displayName,
   };
-  const latestAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant");
-
   return (
     <div ref={shell} className={`app-shell ${messages.length ? "has-messages" : "is-welcome"}`}>
       <aside className="sidebar" aria-label="Main navigation">
@@ -974,6 +973,7 @@ export function PerzoChat() {
                 </div>
                 <VoiceInput
                   disabled={busy || preparing}
+                  controlRef={voiceInputButton}
                   onTranscript={(text) =>
                     setDraft((previous) =>
                       `${previous.trimEnd()}${previous.trim() ? " " : ""}${text}`.slice(
@@ -993,27 +993,25 @@ export function PerzoChat() {
                 />
                 <button
                   type="button"
-                  className={`speaker-toggle-btn voice-orb-control ${autoSpeak || speakingId ? "is-active" : ""}`}
+                  className={`speaker-toggle-btn voice-orb-control ${autoSpeak || speakingId || listening ? "is-active" : ""}`}
                   onClick={() => {
-                    if (latestAssistantMessage) {
-                      toggleSpeak(latestAssistantMessage.id, latestAssistantMessage.content);
-                      return;
-                    }
-                    const next = !autoSpeak;
-                    setAutoSpeak(next);
-                    if (!next) {
+                    if (speakingId) {
                       stopSpeaking();
                       setSpeakingId(null);
+                      return;
                     }
+                    if (listening) {
+                      setAutoSpeak(false);
+                      voiceInputButton.current?.click();
+                      return;
+                    }
+                    setAutoSpeak(true);
+                    voiceInputButton.current?.click();
                   }}
                   disabled={busy || preparing}
-                  aria-label={latestAssistantMessage
-                    ? (speakingId === latestAssistantMessage.id ? "Stop speaking" : "Speak latest reply")
-                    : (autoSpeak ? "Disable auto read aloud" : "Enable auto read aloud")}
-                  aria-pressed={Boolean(autoSpeak || speakingId)}
-                  title={latestAssistantMessage
-                    ? (speakingId === latestAssistantMessage.id ? "Stop speaking" : "Speak latest reply")
-                    : (autoSpeak ? "Voice feedback: ON (Click to turn off)" : "Voice feedback: OFF (Click to turn on auto-speak)")}
+                  aria-label={speakingId || listening ? "Stop voice mode" : "Start voice mode"}
+                  aria-pressed={Boolean(autoSpeak || speakingId || listening)}
+                  title={speakingId || listening ? "Stop voice mode" : "Start listening and speaking"}
                 >
                   <img
                     className="voice-orb-image"
