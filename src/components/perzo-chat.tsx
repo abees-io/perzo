@@ -395,8 +395,8 @@ export function PerzoChat() {
     [],
   );
 
-  async function requestReply(history: DisplayMessage[]) {
-    if (locked.current || preparing || listening) return;
+  async function requestReply(history: DisplayMessage[], fromVoice = false) {
+    if (locked.current || preparing || (listening && !fromVoice)) return;
     unlockAudio();
     locked.current = true;
     setState("thinking");
@@ -469,8 +469,8 @@ export function PerzoChat() {
       if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) input.current?.focus();
     }
   }
-  function send(text = draft) {
-    if (locked.current || preparing || listening) return;
+  function send(text = draft, fromVoice = false) {
+    if (locked.current || preparing || (listening && !fromVoice)) return;
     stopSpeaking();
     setSpeakingId(null);
     const content = text.trim() || (photo ? "What’s in this photo?" : "");
@@ -484,7 +484,7 @@ export function PerzoChat() {
     setDraft("");
     setRetryMessages(null);
     setComposerNotice(null);
-    void requestReply(history);
+    void requestReply(history, fromVoice);
   }
 
   function reset() {
@@ -974,14 +974,14 @@ export function PerzoChat() {
                 <VoiceInput
                   disabled={busy || preparing}
                   controlRef={voiceInputButton}
-                  onTranscript={(text) =>
-                    setDraft((previous) =>
-                      `${previous.trimEnd()}${previous.trim() ? " " : ""}${text}`.slice(
-                        0,
-                        MAX_MESSAGE_LENGTH,
-                      ),
-                    )
-                  }
+                  onTranscript={(text) => {
+                    const next = `${draft.trimEnd()}${draft.trim() ? " " : ""}${text}`.slice(
+                      0,
+                      MAX_MESSAGE_LENGTH,
+                    );
+                    setDraft(next);
+                    if (next.trim()) send(next, true);
+                  }}
                   onListeningChange={(active) => {
                     setListening(active);
                     if (active) {
