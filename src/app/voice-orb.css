@@ -6,6 +6,8 @@
   filter: drop-shadow(0 0 14px rgba(80, 156, 255, .42));
 }
 
+.voice-orb-video { mix-blend-mode: screen; }
+.message-avatar-logo { display: block; width: 100%; height: 100%; object-fit: cover; }
 .voice-orb-control .voice-orb-image { width: 23px; height: 23px; }
 .voice-input-proxy { display: none !important; }
 .voice-orb-control.is-active .voice-orb-image {

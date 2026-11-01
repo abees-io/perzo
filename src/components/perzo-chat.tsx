@@ -833,7 +833,7 @@ export function PerzoChat() {
                 {busy && state !== "generating" && (
                   <div className="message message-assistant message-thinking">
                     <div className="message-avatar" style={{ width: "35px", height: "35px", borderRadius: "50%", overflow: "hidden" }}>
-                      <img className="voice-orb-image" src="/voice-orb-transparent.png" alt="" />
+                      <img className="message-avatar-logo" src="/perzo-logo.png" alt="Perzo" />
                     </div>
                     <div className="message-content">
                       <span className="message-author">Perzo</span>
@@ -1027,16 +1027,15 @@ export function PerzoChat() {
                   aria-pressed={Boolean(autoSpeak || speakingId || listening)}
                   title={speakingId || listening ? "Stop voice mode" : "Start listening and speaking"}
                 >
-                  <img
-                    className="voice-orb-image"
-                    src="/voice-orb-transparent.png"
-                    alt=""
+                  <video
+                    className="voice-orb-image voice-orb-video"
+                    src="/orb-video.mp4"
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    preload="auto"
                     aria-hidden="true"
-                    style={{
-                      width: "21px",
-                      height: "21px",
-                      filter: autoSpeak || speakingId ? "saturate(1.25) brightness(1.15)" : undefined,
-                    }}
                   />
                 </button>
                 <button
