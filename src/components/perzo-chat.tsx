@@ -765,13 +765,13 @@ export function PerzoChat() {
                             title={speakingId === message.id ? "Stop reading" : "Read out loud"}
                           >
                             <span
-                              className="iridescent-orb voice-orb message-voice-orb"
+                              className="glowing-orb voice-orb message-voice-orb"
                               aria-hidden="true"
                               style={{
                                 width: "15px",
                                 height: "15px",
-                                transform: speakingId === message.id ? "scale(1.65)" : "scale(1)",
-                                filter: speakingId === message.id ? "contrast(125%) brightness(125%)" : undefined,
+                                filter: speakingId === message.id ? "saturate(1.25) brightness(1.15)" : undefined,
+                                animationDuration: speakingId === message.id ? "1.5s" : "6s",
                               }}
                             />
                           </button>
@@ -975,13 +975,13 @@ export function PerzoChat() {
                   title={autoSpeak ? "Voice feedback: ON (Click to turn off)" : "Voice feedback: OFF (Click to turn on auto-speak)"}
                 >
                   <span
-                    className="iridescent-orb voice-orb"
+                    className="glowing-orb voice-orb"
                     aria-hidden="true"
                     style={{
                       width: "21px",
                       height: "21px",
-                      transform: autoSpeak || speakingId ? "scale(1.75)" : "scale(1)",
-                      filter: autoSpeak || speakingId ? "contrast(125%) brightness(125%)" : undefined,
+                      filter: autoSpeak || speakingId ? "saturate(1.25) brightness(1.15)" : undefined,
+                      animationDuration: autoSpeak || speakingId ? "1.5s" : "6s",
                       boxShadow: autoSpeak || speakingId
                         ? "0 0 18px rgba(56, 189, 248, 0.9), 0 0 32px rgba(37, 99, 235, 0.55)"
                         : undefined,
