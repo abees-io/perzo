@@ -749,7 +749,16 @@ export function PerzoChat() {
                 }}
               >
                 <span className="voice-speaking-grains" aria-hidden="true" />
-                <img className="voice-speaking-orb" src="/voice-orb-transparent.png" alt="" />
+                <video
+                  className="voice-speaking-orb voice-speaking-video"
+                  src="/orb-video.mp4"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  preload="auto"
+                  aria-hidden="true"
+                />
               </button>
             </div>
           </div>
