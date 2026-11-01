@@ -11,6 +11,7 @@ import { getGreeting } from "@/lib/greeting";
 import { DEFAULT_MODEL_ID, getModel, sanitizeModelId } from "@/lib/models";
 import { ModelPicker } from "./model-picker";
 import { MediaMenu } from "./media-menu";
+import { speakText, stopSpeaking } from "@/lib/speech";
 
 type DisplayMessage = ChatMessage & { id: string };
 type AssistantState = "idle" | "thinking" | "working" | "generating";
@@ -135,8 +136,8 @@ function Navigation({
               <span>
                 {project.id === "personal" && project.messages.length
                   ? project.messages
-                      .find((message) => message.role === "user")
-                      ?.content.slice(0, 48) || "Chat"
+                    .find((message) => message.role === "user")
+                    ?.content.slice(0, 48) || "Chat"
                   : project.name}
               </span>
             </button>
@@ -209,7 +210,7 @@ export function PerzoChat() {
     try {
       const saved = sanitizeModelId(localStorage.getItem("perzo.selectedModel"));
       if (saved) setSelectedModel(saved);
-    } catch {}
+    } catch { }
   }, []);
   function changeModel(id: string) {
     if (photo && !getModel(id)?.vision) {
@@ -221,7 +222,7 @@ export function PerzoChat() {
     setComposerNotice(null);
     try {
       localStorage.setItem("perzo.selectedModel", id);
-    } catch {}
+    } catch { }
   }
 
   const photoInput = useRef<HTMLInputElement>(null);
@@ -230,7 +231,7 @@ export function PerzoChat() {
   function unlockAudio() {
     try {
       if (!audio.current) audio.current = new AudioContext();
-      void audio.current.resume().catch(() => {});
+      void audio.current.resume().catch(() => { });
     } catch {
       /* Optional audio isn't available everywhere. */
     }
@@ -273,6 +274,10 @@ export function PerzoChat() {
   const [state, setState] = useState<AssistantState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [retryMessages, setRetryMessages] = useState<DisplayMessage[] | null>(null);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [autoSpeak, setAutoSpeak] = useState(false);
+  const autoSpeakRef = useRef(false);
+  autoSpeakRef.current = autoSpeak;
   const locked = useRef(false);
   const shell = useRef<HTMLDivElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
@@ -288,10 +293,27 @@ export function PerzoChat() {
   }, [error, composerNotice]);
   useEffect(
     () => () => {
-      void audio.current?.close().catch(() => {});
+      stopSpeaking();
+      void audio.current?.close().catch(() => { });
     },
     [],
   );
+
+  function toggleSpeak(id: string, text: string) {
+    if (speakingId === id) {
+      stopSpeaking();
+      setSpeakingId(null);
+    } else {
+      stopSpeaking();
+      setSpeakingId(id);
+      speakText({
+        text,
+        onStart: () => setSpeakingId(id),
+        onEnd: () => setSpeakingId((current) => (current === id ? null : current)),
+        onError: () => setSpeakingId((current) => (current === id ? null : current)),
+      });
+    }
+  }
 
   useEffect(() => {
     if (state !== "thinking") return;
@@ -410,6 +432,16 @@ export function PerzoChat() {
       setRetryMessages(null);
       setState("idle");
       chime();
+      if (autoSpeakRef.current && data.reply) {
+        const id = replyId;
+        setSpeakingId(id);
+        speakText({
+          text: data.reply,
+          onStart: () => setSpeakingId(id),
+          onEnd: () => setSpeakingId((current) => (current === id ? null : current)),
+          onError: () => setSpeakingId((current) => (current === id ? null : current)),
+        });
+      }
     } catch (failure) {
       setMessages(history);
       setError(
@@ -429,6 +461,8 @@ export function PerzoChat() {
   }
   function send(text = draft) {
     if (locked.current || preparing || listening) return;
+    stopSpeaking();
+    setSpeakingId(null);
     const content = text.trim() || (photo ? "What’s in this photo?" : "");
     if (!content || content.length > MAX_MESSAGE_LENGTH) return;
     const history: DisplayMessage[] = [
@@ -445,19 +479,21 @@ export function PerzoChat() {
 
   function reset() {
     if (locked.current || listening) return;
+    stopSpeaking();
+    setSpeakingId(null);
     setWorkspaces((previous) => {
       const personal = previous.find((workspace) => workspace.id === "personal");
       const saved = personal?.messages.length
         ? [
-            {
-              ...personal,
-              id: crypto.randomUUID(),
-              name:
-                personal.messages
-                  .find((message) => message.role === "user")
-                  ?.content.slice(0, 48) || "Chat",
-            },
-          ]
+          {
+            ...personal,
+            id: crypto.randomUUID(),
+            name:
+              personal.messages
+                .find((message) => message.role === "user")
+                ?.content.slice(0, 48) || "Chat",
+          },
+        ]
         : [];
       return [
         ...previous.filter((workspace) => workspace.id !== "personal"),
@@ -503,6 +539,8 @@ export function PerzoChat() {
   }
   function selectWorkspace(id: string) {
     if (locked.current || listening) return;
+    stopSpeaking();
+    setSpeakingId(null);
     setActiveId(id);
     setDraft("");
     setPhoto(undefined);
@@ -685,7 +723,15 @@ export function PerzoChat() {
             {messages.length === 0 ? (
               <div className="minimal-welcome">
                 <div className="welcome-center">
-                  <BrandMark className="welcome-brand" />
+                  {busy ? (
+                    <div className="welcome-brand" style={{ display: "grid", placeItems: "center" }}>
+                      <div style={{ width: "72px", height: "72px" }}>
+                        <div className="iridescent-orb" style={{ width: "72px", height: "72px" }} />
+                      </div>
+                    </div>
+                  ) : (
+                    <BrandMark className="welcome-brand" />
+                  )}
                   <h1>{hour === null ? "What’s on your mind?" : getGreeting(hour, displayName)}</h1>
                 </div>
               </div>
@@ -706,9 +752,22 @@ export function PerzoChat() {
                 {messages.map((message) => (
                   <article className={`message message-${message.role}`} key={message.id}>
                     <div className="message-content">
-                      <span className="message-author">
-                        {message.role === "assistant" ? "Perzo" : displayName || "You"}
-                      </span>
+                      <div className="message-header">
+                        <span className="message-author">
+                          {message.role === "assistant" ? "Perzo" : displayName || "You"}
+                        </span>
+                        {message.role === "assistant" && (
+                          <button
+                            type="button"
+                            className={`message-speak-btn ${speakingId === message.id ? "is-speaking" : ""}`}
+                            onClick={() => toggleSpeak(message.id, message.content)}
+                            aria-label={speakingId === message.id ? "Stop voice reading" : "Read message out loud"}
+                            title={speakingId === message.id ? "Stop reading" : "Read out loud"}
+                          >
+                            <Icon name={speakingId === message.id ? "volume-mute" : "volume"} size={15} />
+                          </button>
+                        )}
+                      </div>
                       <p>{message.content}</p>
                       {message.image && (
                         <img className="chat-photo" src={message.image} alt="Attached photo" />
@@ -718,7 +777,9 @@ export function PerzoChat() {
                 ))}
                 {busy && state !== "generating" && (
                   <div className="message message-assistant message-thinking">
-                    <BrandMark className="message-avatar" state={state} />
+                    <div className="message-avatar" style={{ width: "35px", height: "35px", borderRadius: "50%", overflow: "hidden" }}>
+                      <div className="iridescent-orb" />
+                    </div>
                     <div className="message-content">
                       <span className="message-author">Perzo</span>
                       <div
@@ -879,9 +940,33 @@ export function PerzoChat() {
                       ),
                     )
                   }
-                  onListeningChange={setListening}
+                  onListeningChange={(active) => {
+                    setListening(active);
+                    if (active) {
+                      stopSpeaking();
+                      setSpeakingId(null);
+                    }
+                  }}
                   onError={setComposerNotice}
                 />
+                <button
+                  type="button"
+                  className={`speaker-toggle-btn ${autoSpeak ? "is-active" : ""}`}
+                  onClick={() => {
+                    const next = !autoSpeak;
+                    setAutoSpeak(next);
+                    if (!next) {
+                      stopSpeaking();
+                      setSpeakingId(null);
+                    }
+                  }}
+                  disabled={busy || preparing}
+                  aria-label={autoSpeak ? "Disable auto read aloud" : "Enable auto read aloud"}
+                  aria-pressed={autoSpeak}
+                  title={autoSpeak ? "Voice feedback: ON (Click to turn off)" : "Voice feedback: OFF (Click to turn on auto-speak)"}
+                >
+                  <Icon name={autoSpeak ? "volume" : "volume-mute"} size={20} />
+                </button>
                 <button
                   className="send-button"
                   type="submit"

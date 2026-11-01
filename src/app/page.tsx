@@ -1,5 +1,5 @@
 import { PerzoChat } from "@/components/perzo-chat";
 
-export default function Home() {
+export default function Page() {
   return <PerzoChat />;
 }
