@@ -575,6 +575,7 @@ export function PerzoChat() {
     onSelect: selectWorkspace,
     displayName,
   };
+  const latestAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant");
 
   return (
     <div ref={shell} className={`app-shell ${messages.length ? "has-messages" : "is-welcome"}`}>
@@ -962,6 +963,10 @@ export function PerzoChat() {
                   type="button"
                   className={`speaker-toggle-btn voice-orb-control ${autoSpeak || speakingId ? "is-active" : ""}`}
                   onClick={() => {
+                    if (latestAssistantMessage) {
+                      toggleSpeak(latestAssistantMessage.id, latestAssistantMessage.content);
+                      return;
+                    }
                     const next = !autoSpeak;
                     setAutoSpeak(next);
                     if (!next) {
@@ -970,9 +975,13 @@ export function PerzoChat() {
                     }
                   }}
                   disabled={busy || preparing}
-                  aria-label={autoSpeak ? "Disable auto read aloud" : "Enable auto read aloud"}
-                  aria-pressed={autoSpeak}
-                  title={autoSpeak ? "Voice feedback: ON (Click to turn off)" : "Voice feedback: OFF (Click to turn on auto-speak)"}
+                  aria-label={latestAssistantMessage
+                    ? (speakingId === latestAssistantMessage.id ? "Stop speaking" : "Speak latest reply")
+                    : (autoSpeak ? "Disable auto read aloud" : "Enable auto read aloud")}
+                  aria-pressed={Boolean(autoSpeak || speakingId)}
+                  title={latestAssistantMessage
+                    ? (speakingId === latestAssistantMessage.id ? "Stop speaking" : "Speak latest reply")
+                    : (autoSpeak ? "Voice feedback: ON (Click to turn off)" : "Voice feedback: OFF (Click to turn on auto-speak)")}
                 >
                   <span
                     className="glowing-orb voice-orb"
