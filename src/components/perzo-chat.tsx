@@ -291,7 +291,7 @@ export function PerzoChat() {
   const busy = state === "thinking" || state === "working" || state === "generating";
   const controlsBusy = busy || listening || preparing;
   useEffect(() => {
-    if (speakingId) {
+    if (speakingId || listening) {
       setVoiceOverlayVisible(true);
       return;
     }
@@ -729,7 +729,7 @@ export function PerzoChat() {
         </header>
         {voiceOverlayVisible && (
           <div
-            className={`voice-speaking-overlay ${speakingId ? "is-entering" : "is-leaving"}`}
+            className={`voice-speaking-overlay ${speakingId ? "is-speaking" : listening ? "is-listening" : "is-leaving"}`}
             role="status"
             aria-live="polite"
           >
@@ -737,10 +737,15 @@ export function PerzoChat() {
               <button
                 type="button"
                 className="voice-speaking-orb-button"
-                aria-label="Stop speaking"
+                aria-label={speakingId ? "Stop speaking" : "Stop listening"}
                 onClick={() => {
-                  stopSpeaking();
-                  setSpeakingId(null);
+                  if (speakingId) {
+                    stopSpeaking();
+                    setSpeakingId(null);
+                  } else {
+                    setAutoSpeak(false);
+                    voiceInputButton.current?.click();
+                  }
                 }}
               >
                 <span className="voice-speaking-grains" aria-hidden="true" />
