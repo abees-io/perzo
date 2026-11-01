@@ -12,6 +12,7 @@ import { DEFAULT_MODEL_ID, getModel, sanitizeModelId } from "@/lib/models";
 import { ModelPicker } from "./model-picker";
 import { MediaMenu } from "./media-menu";
 import { speakText, stopSpeaking } from "@/lib/speech";
+import { AssistantOrb } from "./assistant-orb";
 
 type DisplayMessage = ChatMessage & { id: string };
 type AssistantState = "idle" | "thinking" | "working" | "generating";
@@ -748,16 +749,9 @@ export function PerzoChat() {
                   }
                 }}
               >
-                <span className="voice-speaking-grains" aria-hidden="true" />
-                <video
-                  className="voice-speaking-orb voice-speaking-video"
-                  src="/orb-video.mp4"
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  preload="auto"
-                  aria-hidden="true"
+                <AssistantOrb 
+                  size="large" 
+                  state={listening ? "listening" : "speaking"} 
                 />
               </button>
             </div>
@@ -768,128 +762,127 @@ export function PerzoChat() {
             {messages.length === 0 ? (
               <div className="minimal-welcome">
                 <div className="welcome-center">
-                  {busy ? (
-                    <div className="welcome-brand" style={{ display: "grid", placeItems: "center" }}>
-                      <div style={{ width: "72px", height: "72px" }}>
-                        <img className="voice-orb-image" src="/voice-orb-transparent.png" alt="" />
-                      </div>
-                    </div>
-                  ) : (
-                    <BrandMark className="welcome-brand" />
-                  )}
-                  <h1>{hour === null ? "What’s on your mind?" : getGreeting(hour, displayName)}</h1>
+                  <div className="welcome-orb-container">
+                    <AssistantOrb 
+                      size="large" 
+                      state={listening ? "listening" : speakingId ? "speaking" : busy ? "thinking" : "idle"} 
+                    />
+                  </div>
+                  <h1 className="welcome-text" style={{ fontFamily: 'Georgia, serif', fontSize: '28px', color: '#222', opacity: 1 }}>
+                    {listening ? "I'm listening..." : speakingId ? "Perzo is speaking" : "What Can I help you with?"}
+                  </h1>
                 </div>
               </div>
             ) : (
-              <div
-                className="message-list"
-                role="log"
-                aria-label="Conversation"
-                aria-live="polite"
-                aria-relevant="additions text"
-              >
-                <div className="assistant-intro">
-                  <div>
-                    <span>{displayName ? `Hey, ${displayName}.` : "Hey there."}</span>
-                    <p>What’s on your mind?</p>
-                  </div>
+              <div className="chat-content-view">
+                <div className="session-header">
+                  <h2 className="session-greeting">{displayName ? `Hey, ${displayName}.` : "Hey there."} What’s on your mind?</h2>
                 </div>
-                {messages.map((message) => (
-                  <article className={`message message-${message.role}`} key={message.id}>
-                    <div className="message-content">
-                      <div className="message-header">
-                        <span className="message-author">
-                          {message.role === "assistant" ? "Perzo" : displayName || "You"}
-                        </span>
-                        {message.role === "assistant" && (
+                <div className="orb-session-container">
+                   <AssistantOrb 
+                      size="small" 
+                      state={listening ? "listening" : speakingId ? "speaking" : busy ? "thinking" : "idle"} 
+                    />
+                </div>
+                <div className="message-list-container">
+                  <div
+                    className="message-list"
+                    role="log"
+                    aria-label="Conversation"
+                    aria-live="polite"
+                    aria-relevant="additions text"
+                  >
+                    {messages.map((message) => (
+                      <article className={`message message-${message.role}`} key={message.id}>
+                        <div className="message-content">
+                          <div className="message-header">
+                            <span className="message-author">
+                              {message.role === "assistant" ? "Perzo" : displayName || "You"}
+                            </span>
+                            {message.role === "assistant" && (
+                              <button
+                                type="button"
+                                className={`message-speak-btn ${speakingId === message.id ? "is-speaking" : ""}`}
+                                onClick={() => toggleSpeak(message.id, message.content)}
+                                aria-label={speakingId === message.id ? "Stop voice reading" : "Read message out loud"}
+                                title={speakingId === message.id ? "Stop reading" : "Read out loud"}
+                              >
+                                <AssistantOrb 
+                                  size="tiny" 
+                                  state={speakingId === message.id ? "speaking" : "idle"} 
+                                />
+                              </button>
+                            )}
+                          </div>
+                          <p>{message.content}</p>
+                          {message.image && (
+                            <img className="chat-photo" src={message.image} alt="Attached photo" />
+                          )}
+                        </div>
+                      </article>
+                    ))}
+                    {busy && state !== "generating" && (
+                      <div className="message message-assistant message-thinking">
+                        <div className="message-avatar" style={{ width: "35px", height: "35px", borderRadius: "50%", overflow: "hidden", display: "grid", placeItems: "center", background: "#000" }}>
+                          <AssistantOrb size="small" state="thinking" />
+                        </div>
+                        <div className="message-content">
+                          <span className="message-author">Perzo</span>
+                          <div
+                            className="typing-indicator"
+                            role="status"
+                            aria-label={
+                              state === "working"
+                                ? "Perzo is still working on your reply"
+                                : "Perzo is thinking"
+                            }
+                          >
+                            <i />
+                            <i />
+                            <i />
+                            <span className="activity-caption">
+                              {state === "working" ? "Working on it…" : "Thinking…"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {error && (
+                      <div className="error-notice" role="alert">
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "flex-start",
+                            gap: "8px",
+                          }}
+                        >
+                          <p>{error}</p>
                           <button
                             type="button"
-                            className={`message-speak-btn ${speakingId === message.id ? "is-speaking" : ""}`}
-                            onClick={() => toggleSpeak(message.id, message.content)}
-                            aria-label={speakingId === message.id ? "Stop voice reading" : "Read message out loud"}
-                            title={speakingId === message.id ? "Stop reading" : "Read out loud"}
+                            onClick={() => setError(null)}
+                            aria-label="Dismiss error"
+                            style={{
+                              background: "transparent",
+                              border: 0,
+                              padding: 0,
+                              cursor: "pointer",
+                              color: "#a59ba9",
+                              minHeight: "auto",
+                            }}
                           >
-                            <img
-                              className="voice-orb-image message-voice-orb"
-                              src="/voice-orb-transparent.png"
-                              alt=""
-                              aria-hidden="true"
-                              style={{
-                                width: "15px",
-                                height: "15px",
-                                filter: speakingId === message.id ? "saturate(1.25) brightness(1.15)" : undefined,
-                              }}
-                            />
+                            <Icon name="close" size={14} />
+                          </button>
+                        </div>
+                        {retryMessages && (
+                          <button onClick={() => void requestReply(retryMessages)} disabled={controlsBusy}>
+                            Try again <Icon name="arrow" size={15} />
                           </button>
                         )}
                       </div>
-                      <p>{message.content}</p>
-                      {message.image && (
-                        <img className="chat-photo" src={message.image} alt="Attached photo" />
-                      )}
-                    </div>
-                  </article>
-                ))}
-                {busy && state !== "generating" && (
-                  <div className="message message-assistant message-thinking">
-                    <div className="message-avatar" style={{ width: "35px", height: "35px", borderRadius: "50%", overflow: "hidden" }}>
-                      <img className="message-avatar-logo" src="/perzo-logo.png" alt="Perzo" />
-                    </div>
-                    <div className="message-content">
-                      <span className="message-author">Perzo</span>
-                      <div
-                        className="typing-indicator"
-                        role="status"
-                        aria-label={
-                          state === "working"
-                            ? "Perzo is still working on your reply"
-                            : "Perzo is thinking"
-                        }
-                      >
-                        <i />
-                        <i />
-                        <i />
-                        <span className="activity-caption">
-                          {state === "working" ? "Working on it…" : "Thinking…"}
-                        </span>
-                      </div>
-                    </div>
+                    )}
                   </div>
-                )}
-              </div>
-            )}
-            {error && (
-              <div className="error-notice" role="alert">
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    gap: "8px",
-                  }}
-                >
-                  <p>{error}</p>
-                  <button
-                    type="button"
-                    onClick={() => setError(null)}
-                    aria-label="Dismiss error"
-                    style={{
-                      background: "transparent",
-                      border: 0,
-                      padding: 0,
-                      cursor: "pointer",
-                      color: "#a59ba9",
-                      minHeight: "auto",
-                    }}
-                  >
-                    <Icon name="close" size={14} />
-                  </button>
                 </div>
-                {retryMessages && (
-                  <button onClick={() => void requestReply(retryMessages)} disabled={controlsBusy}>
-                    Try again <Icon name="arrow" size={15} />
-                  </button>
-                )}
               </div>
             )}
             <div ref={bottom} />
@@ -1027,15 +1020,9 @@ export function PerzoChat() {
                   aria-pressed={Boolean(autoSpeak || speakingId || listening)}
                   title={speakingId || listening ? "Stop voice mode" : "Start listening and speaking"}
                 >
-                  <video
-                    className="voice-orb-image voice-orb-video"
-                    src="/orb-video.mp4"
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    preload="auto"
-                    aria-hidden="true"
+                  <AssistantOrb 
+                    size="small" 
+                    state={listening ? "listening" : speakingId ? "speaking" : busy ? "thinking" : "idle"} 
                   />
                 </button>
                 <button
