@@ -764,7 +764,16 @@ export function PerzoChat() {
                             aria-label={speakingId === message.id ? "Stop voice reading" : "Read message out loud"}
                             title={speakingId === message.id ? "Stop reading" : "Read out loud"}
                           >
-                            <Icon name={speakingId === message.id ? "volume-mute" : "volume"} size={15} />
+                            <span
+                              className="iridescent-orb voice-orb message-voice-orb"
+                              aria-hidden="true"
+                              style={{
+                                width: "15px",
+                                height: "15px",
+                                transform: speakingId === message.id ? "scale(1.65)" : "scale(1)",
+                                filter: speakingId === message.id ? "contrast(125%) brightness(125%)" : undefined,
+                              }}
+                            />
                           </button>
                         )}
                       </div>
@@ -951,7 +960,7 @@ export function PerzoChat() {
                 />
                 <button
                   type="button"
-                  className={`speaker-toggle-btn ${autoSpeak ? "is-active" : ""}`}
+                  className={`speaker-toggle-btn voice-orb-control ${autoSpeak || speakingId ? "is-active" : ""}`}
                   onClick={() => {
                     const next = !autoSpeak;
                     setAutoSpeak(next);
@@ -965,7 +974,19 @@ export function PerzoChat() {
                   aria-pressed={autoSpeak}
                   title={autoSpeak ? "Voice feedback: ON (Click to turn off)" : "Voice feedback: OFF (Click to turn on auto-speak)"}
                 >
-                  <Icon name={autoSpeak ? "volume" : "volume-mute"} size={20} />
+                  <span
+                    className="iridescent-orb voice-orb"
+                    aria-hidden="true"
+                    style={{
+                      width: "21px",
+                      height: "21px",
+                      transform: autoSpeak || speakingId ? "scale(1.75)" : "scale(1)",
+                      filter: autoSpeak || speakingId ? "contrast(125%) brightness(125%)" : undefined,
+                      boxShadow: autoSpeak || speakingId
+                        ? "0 0 18px rgba(56, 189, 248, 0.9), 0 0 32px rgba(37, 99, 235, 0.55)"
+                        : undefined,
+                    }}
+                  />
                 </button>
                 <button
                   className="send-button"
