@@ -123,11 +123,11 @@ export function speakText({
     utterance.lang = hasMalayalam ? "ml-IN" : navigator.language || "en-US";
   }
 
-  // Confident tone profile:
-  // - Grounded pitch (0.95) creates a calm, deeper resonance instead of robotic treble
-  // - Brisk cadence (1.06) delivers a snappy, articulate pace
-  utterance.pitch = hasMalayalam ? 1.0 : 0.95;
-  utterance.rate = hasMalayalam ? 1.0 : 1.06;
+  // Warm, friendly tone profile: a slightly lifted pitch and relaxed cadence
+  // sound more conversational than the previous brisk, announcer-like delivery.
+  utterance.pitch = hasMalayalam ? 1.04 : 1.02;
+  utterance.rate = hasMalayalam ? 0.94 : 0.97;
+  utterance.volume = 1;
 
   utterance.onstart = () => {
     onStart?.();
