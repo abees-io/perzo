@@ -38,6 +38,17 @@ export async function getPerzoReply(
   const provider = getModel(resolvedModel)?.provider;
   const getReply =
     provider === "gemini" ? getGeminiReply : provider === "groq" ? getGroqReply : getNvidiaReply;
-  const reply = await getReply({ messages, instructions, signal, onDelta, model: resolvedModel });
+  const latestUserMessage = [...messages].reverse().find((message) => message.role === "user")?.content || "";
+  const asksForMalayalam = /[\u0D00-\u0D7F]/.test(latestUserMessage) || /\b(malayalam|മലയാളം)\b/i.test(latestUserMessage);
+  const languageInstructions = asksForMalayalam
+    ? " The user is using or requesting Malayalam. Reply entirely in natural Malayalam using Malayalam script, unless they explicitly request another language."
+    : " If the user asks for Malayalam, reply entirely in natural Malayalam using Malayalam script.";
+  const reply = await getReply({
+    messages,
+    instructions: `${instructions}${languageInstructions}`,
+    signal,
+    onDelta,
+    model: resolvedModel,
+  });
   return limitReply(reply);
 }
