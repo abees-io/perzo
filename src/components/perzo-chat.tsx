@@ -275,6 +275,7 @@ export function PerzoChat() {
   const [error, setError] = useState<string | null>(null);
   const [retryMessages, setRetryMessages] = useState<DisplayMessage[] | null>(null);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [voiceOverlayVisible, setVoiceOverlayVisible] = useState(false);
   const [autoSpeak, setAutoSpeak] = useState(false);
   const autoSpeakRef = useRef(false);
   autoSpeakRef.current = autoSpeak;
@@ -288,6 +289,14 @@ export function PerzoChat() {
   const controller = useRef<AbortController | null>(null);
   const busy = state === "thinking" || state === "working" || state === "generating";
   const controlsBusy = busy || listening || preparing;
+  useEffect(() => {
+    if (speakingId) {
+      setVoiceOverlayVisible(true);
+      return;
+    }
+    const timer = window.setTimeout(() => setVoiceOverlayVisible(false), 280);
+    return () => window.clearTimeout(timer);
+  }, [speakingId]);
   useEffect(() => {
     if (error || composerNotice) navigator.vibrate?.([35, 45, 35]);
   }, [error, composerNotice]);
@@ -719,23 +728,25 @@ export function PerzoChat() {
             <Icon name="new-chat" size={19} />
           </button>
         </header>
-        {speakingId && (
+        {voiceOverlayVisible && (
           <div
-            className="voice-speaking-overlay"
+            className={`voice-speaking-overlay ${speakingId ? "is-entering" : "is-leaving"}`}
             role="status"
             aria-live="polite"
-            onClick={() => {
-              stopSpeaking();
-              setSpeakingId(null);
-            }}
           >
             <div className="voice-speaking-card">
-              <img
-                className="voice-speaking-orb"
-                src="/voice-orb-transparent.png"
-                alt="Perzo is speaking"
-              />
-              <p className="voice-speaking-caption">Perzo is speaking… tap the orb to stop.</p>
+              <button
+                type="button"
+                className="voice-speaking-orb-button"
+                aria-label="Stop speaking"
+                onClick={() => {
+                  stopSpeaking();
+                  setSpeakingId(null);
+                }}
+              >
+                <span className="voice-speaking-grains" aria-hidden="true" />
+                <img className="voice-speaking-orb" src="/voice-orb-transparent.png" alt="" />
+              </button>
             </div>
           </div>
         )}
