@@ -26,6 +26,8 @@ export function cleanTextForSpeech(text: string): string {
     // Remove bullet points / lists
     .replace(/^\s*[-*+]\s+/gm, "")
     .replace(/^\s*\d+\.\s+/gm, "")
+    // Emojis are useful on screen but browser TTS may announce their names.
+    .replace(/[\p{Extended_Pictographic}\uFE0F\u200D\u{1F3FB}-\u{1F3FF}]/gu, "")
     // Collapse extra whitespaces
     .replace(/\s+/g, " ")
     .trim();
