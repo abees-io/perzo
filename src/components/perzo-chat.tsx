@@ -7,7 +7,6 @@ import { Icon } from "./icon";
 import { VoiceInput } from "./voice-input";
 import { readReplyStream } from "@/lib/reply-stream";
 import { preparePhoto } from "@/lib/photo";
-import { getGreeting } from "@/lib/greeting";
 import { DEFAULT_MODEL_ID, getModel, sanitizeModelId } from "@/lib/models";
 import { ModelPicker } from "./model-picker";
 import { MediaMenu } from "./media-menu";
@@ -199,7 +198,7 @@ export function PerzoChat() {
   const [projectError, setProjectError] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [editedName, setEditedName] = useState("");
-  const [hour, setHour] = useState<number | null>(null);
+  const [_hour, setHour] = useState<number | null>(null);
   const [profileNotice, setProfileNotice] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const [composerNotice, setComposerNotice] = useState<string | null>(null);
